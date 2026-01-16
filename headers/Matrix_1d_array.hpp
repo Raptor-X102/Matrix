@@ -13,17 +13,12 @@
 #include "Timer.hpp"
 #include "Debug_printf.h"
 
-enum class TransformationTypes {
-    I_TYPE,
-    II_TYPE,
-    III_TYPE
-};
+enum class TransformationTypes { I_TYPE, II_TYPE, III_TYPE };
 
-template<typename T>
-class Matrix_1d {
+template <typename T> class Matrix_1d {
 private:
     std::unique_ptr<T[]> matrix_;
-    std::unique_ptr<T*[]> row_pointers_;
+    std::unique_ptr<T *[]> row_pointers_;
     int rows_, cols_, min_dim_;
     std::optional<T> determinant_ = std::nullopt;
 
@@ -40,7 +35,7 @@ private:
         }
 
         matrix_ = std::make_unique<T[]>(rows_ * cols_);
-        row_pointers_ = std::make_unique<T*[]>(rows_);
+        row_pointers_ = std::make_unique<T *[]>(rows_);
 
         for (int i = 0; i < rows_; i++)
             row_pointers_[i] = &matrix_[i * cols_];
@@ -58,13 +53,9 @@ public:
 
     std::optional<T> get_determinant() const { return determinant_; }
     // === Конструкторы ===
-    static Matrix_1d Square(int size) {
-        return Matrix_1d(size, size);
-    }
+    static Matrix_1d Square(int size) { return Matrix_1d(size, size); }
 
-    static Matrix_1d Rectangular(int rows, int cols) {
-        return Matrix_1d(rows, cols);
-    }
+    static Matrix_1d Rectangular(int rows, int cols) { return Matrix_1d(rows, cols); }
 
     static Matrix_1d Identity(int rows, int cols) {
         Matrix_1d result(rows, cols);
@@ -75,11 +66,9 @@ public:
         return result;
     }
 
-    static Matrix_1d Identity(int rows) {
-        return Identity(rows, rows);
-    }
+    static Matrix_1d Identity(int rows) { return Identity(rows, rows); }
 
-    static Matrix_1d Diagonal(int rows, int cols, const std::vector<T>& diagonal) {
+    static Matrix_1d Diagonal(int rows, int cols, const std::vector<T> &diagonal) {
         Matrix_1d result = Matrix_1d::Zero(static_cast<int>(rows), static_cast<int>(cols));
         int diag_size = std::min(result.get_min_dim(), static_cast<int>(diagonal.size()));
         for (int i = 0; i < diag_size; i++)
@@ -88,7 +77,7 @@ public:
         return result;
     }
 
-    static Matrix_1d Diagonal(const std::vector<T>& diagonal) {
+    static Matrix_1d Diagonal(const std::vector<T> &diagonal) {
         int min_dim = diagonal.size();
         Matrix_1d result(min_dim, min_dim);
         for (int i = 0; i < min_dim; i++)
@@ -97,13 +86,13 @@ public:
         return result;
     }
 
-    static Matrix_1d From_vector(const std::vector<std::vector<T>>& input) {
+    static Matrix_1d From_vector(const std::vector<std::vector<T>> &input) {
         if (input.empty()) {
             return Matrix_1d(0, 0);
         }
 
         size_t max_cols = 0;
-        for (const auto& row : input) {
+        for (const auto &row : input) {
             max_cols = std::max(max_cols, row.size());
         }
 
@@ -111,7 +100,7 @@ public:
         Matrix_1d result = Matrix_1d::Zero(static_cast<int>(rows), static_cast<int>(max_cols));
 
         for (size_t i = 0; i < rows; i++) {
-            const auto& current_row = input[i];
+            const auto &current_row = input[i];
             size_t current_cols = current_row.size();
 
             for (size_t j = 0; j < current_cols; j++)
@@ -127,9 +116,7 @@ public:
         return result;
     }
 
-    static Matrix_1d Zero(int rows) {
-        return Zero(rows, rows);
-    }
+    static Matrix_1d Zero(int rows) { return Zero(rows, rows); }
 
     static Matrix_1d Read_vector() {
         int n;
@@ -148,10 +135,8 @@ public:
 
     static Matrix_1d Generate_matrix(int rows, int cols,
         std::conditional_t<std::is_same_v<T, int>, int, T> min_val = {},
-        std::conditional_t<std::is_same_v<T, int>, int, T> max_val = {},
-        int iterations = 100,
-        T target_determinant_magnitude = T{1}
-    ) {
+        std::conditional_t<std::is_same_v<T, int>, int, T> max_val = {}, int iterations = 100,
+        T target_determinant_magnitude = T{1}) {
         if constexpr (std::is_floating_point_v<T>) {
             if (min_val == T{} && max_val == T{}) {
                 min_val = T{-10};
@@ -159,7 +144,8 @@ public:
             }
         }
 
-        std::vector<T> diagonal = create_controlled_diagonal(std::min(rows, cols), min_val, max_val, target_determinant_magnitude);
+        std::vector<T> diagonal = create_controlled_diagonal(
+            std::min(rows, cols), min_val, max_val, target_determinant_magnitude);
         Matrix_1d result(rows, cols);
         result.fill_diagonal(diagonal);
         result.fill_upper_triangle(min_val, max_val);
@@ -172,8 +158,7 @@ public:
     static std::vector<T> create_controlled_diagonal(int size,
         std::conditional_t<std::is_same_v<T, int>, int, T> min_val,
         std::conditional_t<std::is_same_v<T, int>, int, T> max_val,
-        T target_determinant_magnitude
-    ) {
+        T target_determinant_magnitude) {
         std::vector<T> diagonal(size);
         T current_det = T{1};
 
@@ -208,78 +193,74 @@ public:
         return diagonal;
     }
 
-    static void apply_controlled_transformations(Matrix_1d& matrix, int rows, int cols,
+    static void apply_controlled_transformations(Matrix_1d &matrix, int rows, int cols,
         std::conditional_t<std::is_same_v<T, int>, int, T> min_val,
-        std::conditional_t<std::is_same_v<T, int>, int, T> max_val,
-        int iterations
-    ) {
+        std::conditional_t<std::is_same_v<T, int>, int, T> max_val, int iterations) {
         T effective_det = T{1};
         T sign = T{1};
 
         for (int i = 0; i < iterations; ++i) {
-            TransformationTypes rand_transformation = static_cast<TransformationTypes>(
-                generate_random_int_(0, 2));
+            TransformationTypes rand_transformation =
+                static_cast<TransformationTypes>(generate_random_int_(0, 2));
 
             switch (rand_transformation) {
-                case TransformationTypes::I_TYPE: {
-                    int row_1 = generate_random_int_(0, rows - 1);
-                    int row_2 = generate_random_int_(0, rows - 1);
-                    if (row_1 != row_2) {
-                        matrix.swap_rows(row_1, row_2);
-                        sign = -sign;
-                    }
-                    break;
+            case TransformationTypes::I_TYPE: {
+                int row_1 = generate_random_int_(0, rows - 1);
+                int row_2 = generate_random_int_(0, rows - 1);
+                if (row_1 != row_2) {
+                    matrix.swap_rows(row_1, row_2);
+                    sign = -sign;
                 }
+                break;
+            }
 
-                case TransformationTypes::II_TYPE: {
-                    int row = generate_random_int_(0, rows - 1);
+            case TransformationTypes::II_TYPE: {
+                int row = generate_random_int_(0, rows - 1);
+                T scalar = generate_random(min_val, max_val);
+
+                if (!matrix.is_zero(scalar)) {
+                    if constexpr (std::is_floating_point_v<T>) {
+                        scalar = std::clamp(scalar, T{-10.0}, T{10.0});
+                        if (std::abs(scalar) < T{1e-10}) {
+                            scalar = std::copysign(T{1e-10}, scalar);
+                        }
+                    }
+
+                    matrix.multiply_row(row, scalar);
+                    effective_det *= scalar;
+
+                    if constexpr (std::is_floating_point_v<T>) {
+                        T abs_det = std::abs(effective_det);
+                        if (abs_det > T{1e100}) {
+                            matrix.stabilize_for_large_determinant(rows, cols, effective_det);
+                        }
+                    }
+                }
+                break;
+            }
+
+            case TransformationTypes::III_TYPE: {
+                int row_1 = generate_random_int_(0, rows - 1);
+                int row_2 = generate_random_int_(0, rows - 1);
+                if (row_1 != row_2) {
                     T scalar = generate_random(min_val, max_val);
 
-                    if (!matrix.is_zero(scalar)) {
-                        if constexpr (std::is_floating_point_v<T>) {
-                            scalar = std::clamp(scalar, T{-10.0}, T{10.0});
-                            if (std::abs(scalar) < T{1e-10}) {
-                                scalar = std::copysign(T{1e-10}, scalar);
-                            }
-                        }
-
-                        matrix.multiply_row(row, scalar);
-                        effective_det *= scalar;
-
-                        if constexpr (std::is_floating_point_v<T>) {
-                            T abs_det = std::abs(effective_det);
-                            if (abs_det > T{1e100}) {
-                                matrix.stabilize_for_large_determinant(rows, cols, effective_det);
-                            }
-                        }
+                    if constexpr (std::is_floating_point_v<T>) {
+                        scalar = std::clamp(scalar, T{-10.0}, T{10.0});
                     }
-                    break;
+
+                    matrix.add_row_scaled(row_1, row_2, scalar);
                 }
-
-                case TransformationTypes::III_TYPE: {
-                    int row_1 = generate_random_int_(0, rows - 1);
-                    int row_2 = generate_random_int_(0, rows - 1);
-                    if (row_1 != row_2) {
-                        T scalar = generate_random(min_val, max_val);
-
-                        if constexpr (std::is_floating_point_v<T>) {
-                            scalar = std::clamp(scalar, T{-10.0}, T{10.0});
-                        }
-
-                        matrix.add_row_scaled(row_1, row_2, scalar);
-                    }
-                    break;
-                }
+                break;
+            }
             }
         }
 
         matrix.determinant_ = sign * effective_det;
     }
 
-    void fill_upper_triangle(
-        std::conditional_t<std::is_same_v<T, int>, int, T> min_val = {},
-        std::conditional_t<std::is_same_v<T, int>, int, T> max_val = {}
-    ) {
+    void fill_upper_triangle(std::conditional_t<std::is_same_v<T, int>, int, T> min_val = {},
+        std::conditional_t<std::is_same_v<T, int>, int, T> max_val = {}) {
         for (int i = 0; i < min_dim_; ++i) {
             for (int j = i + 1; j < cols_; ++j) {
                 T val = generate_random(min_val, max_val);
@@ -293,7 +274,7 @@ public:
         }
     }
 
-    void stabilize_for_large_determinant(int rows, int cols, T& effective_det) {
+    void stabilize_for_large_determinant(int rows, int cols, T &effective_det) {
         for (int r = 0; r < rows; ++r) {
             T row_norm = T{0};
             for (int c = 0; c < cols; ++c) {
@@ -301,7 +282,8 @@ public:
             }
             if (row_norm > T{1e-10}) {
                 T factor = std::sqrt(T{1e20} / std::abs(effective_det));
-                if (factor < T{1}) factor = T{1};
+                if (factor < T{1})
+                    factor = T{1};
                 multiply_row(r, factor);
                 effective_det *= factor;
                 break;
@@ -309,14 +291,14 @@ public:
         }
     }
 
-    Matrix_1d(const Matrix_1d& rhs) : rows_(rhs.rows_), cols_(rhs.cols_), min_dim_(rhs.min_dim_) {
+    Matrix_1d(const Matrix_1d &rhs) : rows_(rhs.rows_), cols_(rhs.cols_), min_dim_(rhs.min_dim_) {
         alloc_matrix_();
 
         for (int i = 0; i < rows_ * cols_; i++)
             matrix_[i] = rhs.matrix_[i];
     }
 
-    Matrix_1d& operator=(const Matrix_1d& rhs) {
+    Matrix_1d &operator=(const Matrix_1d &rhs) {
         if (this != &rhs) {
             rows_ = rhs.get_rows();
             cols_ = rhs.get_cols();
@@ -330,11 +312,11 @@ public:
         return *this;
     }
 
-    Matrix_1d(Matrix_1d&&) = default;
-    Matrix_1d& operator=(Matrix_1d&&) = default;
+    Matrix_1d(Matrix_1d &&) = default;
+    Matrix_1d &operator=(Matrix_1d &&) = default;
 
-    T& operator()(int i, int j) { return row_pointers_[i][j]; }
-    const T& operator()(int i, int j) const { return row_pointers_[i][j]; }
+    T &operator()(int i, int j) { return row_pointers_[i][j]; }
+    const T &operator()(int i, int j) const { return row_pointers_[i][j]; }
 
     int get_rows() const { return rows_; }
     int get_cols() const { return cols_; }
@@ -349,7 +331,7 @@ public:
         }
     }
 
-    void fill_diagonal(const std::vector<T>& diag) {
+    void fill_diagonal(const std::vector<T> &diag) {
         for (int i = 0; i < min_dim_; ++i) {
             (*this)(i, i) = diag[i];
         }
@@ -436,10 +418,10 @@ public:
         using std::abs;
         auto max_abs = abs((*this)(row, col));
 
-        for (int j = col + 1; j < cols_; ++j) {  
-            auto current_abs = abs((*this)(row, j)); 
+        for (int j = col + 1; j < cols_; ++j) {
+            auto current_abs = abs((*this)(row, j));
             if (current_abs > max_abs) {
-                max_val_index = j; 
+                max_val_index = j;
                 max_abs = current_abs;
             }
         }
@@ -448,7 +430,7 @@ public:
     }
 
     // Вспомогательная функция для подсчёта инверсий через merge sort
-    int merge_and_count(std::vector<int>& arr, int left, int mid, int right) {
+    int merge_and_count(std::vector<int> &arr, int left, int mid, int right) {
         std::vector<int> temp(right - left + 1);
         int i = left, j = mid + 1, k = 0, inv_count = 0;
 
@@ -461,8 +443,10 @@ public:
             }
         }
 
-        while (i <= mid) temp[k++] = arr[i++];
-        while (j <= right) temp[k++] = arr[j++];
+        while (i <= mid)
+            temp[k++] = arr[i++];
+        while (j <= right)
+            temp[k++] = arr[j++];
 
         for (int idx = left; idx <= right; ++idx) {
             arr[idx] = temp[idx - left];
@@ -471,7 +455,7 @@ public:
         return inv_count;
     }
 
-    int merge_sort_and_count(std::vector<int>& arr, int left, int right) {
+    int merge_sort_and_count(std::vector<int> &arr, int left, int right) {
         int inv_count = 0;
         if (left < right) {
             int mid = left + (right - left) / 2;
@@ -487,8 +471,8 @@ public:
     }
 
     std::optional<T> det(int row, int col, int size) {
-        if (row < 0 || row >= rows_ || col < 0 || col >= cols_ ||
-            row + size > rows_ || col + size > cols_ || size <= 0) {
+        if (row < 0 || row >= rows_ || col < 0 || col >= cols_ || row + size > rows_ ||
+            col + size > cols_ || size <= 0) {
             return std::nullopt;
         }
 
@@ -534,10 +518,12 @@ public:
                 }
             }
 
-            if (j == size - 1) continue;
+            if (j == size - 1)
+                continue;
 
             for (int i = row; i < row + size; ++i) {
-                if (used_rows[i - row]) continue;
+                if (used_rows[i - row])
+                    continue;
 
                 T coeff = matrix_cpy(i, current_col) / pivot;
 
@@ -555,9 +541,7 @@ public:
         return determinant;
     }
 
-    std::optional<T> det() {
-        return det(0, 0, min_dim_);
-    }
+    std::optional<T> det() { return det(0, 0, min_dim_); }
 
 private:
     static int generate_random_int_(int min = 1, int max = 100) {
@@ -567,10 +551,8 @@ private:
         return dis(gen);
     }
 
-    static T generate_random(
-        std::conditional_t<std::is_same_v<T, int>, int, T> min_val = {},
-        std::conditional_t<std::is_same_v<T, int>, int, T> max_val = {}
-    ) {
+    static T generate_random(std::conditional_t<std::is_same_v<T, int>, int, T> min_val = {},
+        std::conditional_t<std::is_same_v<T, int>, int, T> max_val = {}) {
         if constexpr (std::is_same_v<T, int>) {
             int actual_min = static_cast<int>(min_val);
             int actual_max = static_cast<int>(max_val);
@@ -579,8 +561,7 @@ private:
                 actual_max = 100;
             }
             return generate_random_int_(actual_min, actual_max);
-        }
-        else if constexpr (std::is_floating_point_v<T>) {
+        } else if constexpr (std::is_floating_point_v<T>) {
             double actual_min = static_cast<double>(min_val);
             double actual_max = static_cast<double>(max_val);
             if (actual_min == 0.0 && actual_max == 0.0) {
@@ -591,10 +572,9 @@ private:
             static std::mt19937 gen(rd());
             std::uniform_real_distribution<double> dis(actual_min, actual_max);
             return static_cast<T>(dis(gen));
-        }
-        else {
+        } else {
             static_assert(std::is_constructible_v<T, int> || std::is_constructible_v<T, double>,
-                          "T must be constructible from int or double");
+                "T must be constructible from int or double");
         }
     }
 };

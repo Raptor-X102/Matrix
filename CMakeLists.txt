@@ -9,12 +9,11 @@ set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
 
 include_directories(${HEADER_DIR})
 
-# === Выбор теста: classic или 1d или оба ===
 option(BUILD_CLASSIC_TEST "Build classic Matrix test" ON)
-option(BUILD_1D_TEST "Build 1D Matrix test" ON)
 option(ENABLE_TIME_MEASURE "Enable time measurement" OFF)
+option(BUILD_ARITHMETIC_TEST "Build arithmetic operations test" ON)
+option(BUILD_COMPLEX_TEST "Build complex number determinant test" ON)
 
-# === Флаги ===
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -23,36 +22,28 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Wextra")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_SANITIZE "-g -O0 -fsanitize=address,undefined -fno-omit-frame-pointer")
 
-# === Сборка тестов ===
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx")
 
 if(BUILD_CLASSIC_TEST)
-    add_executable(matrix_classic_test ${SRC_DIR}/main.cpp)
-    target_compile_definitions(matrix_classic_test PRIVATE MATRIX_IMPL_CLASSIC=1)
+    add_executable(matrix_classic_test_double ${SRC_DIR}/main_double.cpp)
+    target_compile_definitions(matrix_classic_test_double PRIVATE MATRIX_IMPL_CLASSIC=1 USE_DOUBLE=1)
+
+    add_executable(matrix_classic_test_int ${SRC_DIR}/main_int.cpp)
+    target_compile_definitions(matrix_classic_test_int PRIVATE MATRIX_IMPL_CLASSIC=1 USE_INT=1)
 
     if(ENABLE_TIME_MEASURE)
-        target_compile_definitions(matrix_classic_test PRIVATE TIME_MEASURE=1)
+        target_compile_definitions(matrix_classic_test_double PRIVATE TIME_MEASURE=1)
+        target_compile_definitions(matrix_classic_test_int PRIVATE TIME_MEASURE=1)
     endif()
 endif()
 
-if(BUILD_1D_TEST)
-    add_executable(matrix_1d_test ${SRC_DIR}/main.cpp)
-    target_compile_definitions(matrix_1d_test PRIVATE MATRIX_IMPL_1D=1)
-
+if(BUILD_ARITHMETIC_TEST)
+    add_executable(matrix_arithmetic_test ${SRC_DIR}/main.cpp)
     if(ENABLE_TIME_MEASURE)
-        target_compile_definitions(matrix_1d_test PRIVATE TIME_MEASURE=1)
+        target_compile_definitions(matrix_arithmetic_test PRIVATE TIME_MEASURE=1)
     endif()
 endif()
 
-# === Общий тест, сравнивающий обе реализации ===
-if(BUILD_CLASSIC_TEST AND BUILD_1D_TEST)
-    add_executable(matrix_compare_test ${SRC_DIR}/main.cpp)  # новый файл
-
-    if(ENABLE_TIME_MEASURE)
-        target_compile_definitions(matrix_compare_test PRIVATE TIME_MEASURE=1)
-    endif()
-endif()
-
-# === Флаги сборки ===
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_DEBUG}")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -61,8 +52,60 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Sanitize")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_SANITIZE}")
 endif()
 
-# === Вывод настроек ===
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "Time measurement: ${ENABLE_TIME_MEASURE}")
 message(STATUS "Build classic test: ${BUILD_CLASSIC_TEST}")
-message(STATUS "Build 1D test: ${BUILD_1D_TEST}")
+message(STATUS "Build arithmetic test: ${BUILD_ARITHMETIC_TEST}")
+message(STATUS "Build complex test: ${BUILD_COMPLEX_TEST}")
+
+find_program(CLANG_FORMAT "clang-format")
+if(CLANG_FORMAT)
+    set(CLANG_FORMAT_FILE "${CMAKE_SOURCE_DIR}/.clang-format")
+    if(EXISTS "${CLANG_FORMAT_FILE}")
+        file(GLOB_RECURSE ALL_SOURCE_FILES
+            "${SRC_DIR}/*.cpp"
+            "${SRC_DIR}/*.c"
+            "${HEADER_DIR}/*.h"
+            "${HEADER_DIR}/*.hpp"
+        )
+        if(ALL_SOURCE_FILES)
+            add_custom_target(format
+                COMMAND ${CLANG_FORMAT} -i --style=file:${CLANG_FORMAT_FILE} ${ALL_SOURCE_FILES}
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                COMMENT "Formatting source files with clang-format"
+            )
+        endif()
+    endif()
+endif()
+
+if(BUILD_ARITHMETIC_TEST)
+    add_executable(matrix_arithmetic_test_no_avx ${SRC_DIR}/main.cpp)
+    set_property(TARGET matrix_arithmetic_test_no_avx PROPERTY CXX_STANDARD 17)
+    target_compile_options(matrix_arithmetic_test_no_avx PRIVATE $<$<CONFIG:RELEASE>:-O3 -DNDEBUG>)
+    if(ENABLE_TIME_MEASURE)
+        target_compile_definitions(matrix_arithmetic_test_no_avx PRIVATE TIME_MEASURE=1)
+    endif()
+
+    add_executable(matrix_arithmetic_test_with_avx ${SRC_DIR}/main.cpp)
+    set_property(TARGET matrix_arithmetic_test_with_avx PROPERTY CXX_STANDARD 17)
+    target_compile_options(matrix_arithmetic_test_with_avx PRIVATE $<$<CONFIG:RELEASE>:-O3 -DNDEBUG -mavx>)
+    if(ENABLE_TIME_MEASURE)
+        target_compile_definitions(matrix_arithmetic_test_with_avx PRIVATE TIME_MEASURE=1)
+    endif()
+
+    add_executable(matrix_multiply_benchmark ${SRC_DIR}/main_benchmark.cpp)
+    set_property(TARGET matrix_multiply_benchmark PROPERTY CXX_STANDARD 17)
+    target_compile_options(matrix_multiply_benchmark PRIVATE $<$<CONFIG:RELEASE>:-O3 -DNDEBUG -mavx>)
+    if(ENABLE_TIME_MEASURE)
+        target_compile_definitions(matrix_multiply_benchmark PRIVATE TIME_MEASURE=1)
+    endif()
+endif()
+
+if(BUILD_COMPLEX_TEST)
+    add_executable(matrix_complex_det_test ${SRC_DIR}/main_complex.cpp)
+    set_property(TARGET matrix_complex_det_test PROPERTY CXX_STANDARD 17)
+    target_compile_options(matrix_complex_det_test PRIVATE $<$<CONFIG:RELEASE>:-O3 -DNDEBUG -mavx>)
+    if(ENABLE_TIME_MEASURE)
+        target_compile_definitions(matrix_complex_det_test PRIVATE TIME_MEASURE=1)
+    endif()
+endif()

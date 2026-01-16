@@ -1,76 +1,85 @@
+#include "../headers/Matrix.hpp"
+#include "../headers/Timer.hpp"
 #include <iostream>
-#include <optional>
+#include <stdexcept>
+#include <string>
+#include <iomanip> // For formatting output
 
-#include "Matrix.hpp"
-#include "Matrix_1d_array.hpp"
+using namespace std;
 
-#ifdef TIME_MEASURE
-#include "Timer.hpp"
-#endif
+template<typename T>
+void run_arithmetic_tests(int size) {
+    cout << "\n--- Testing Arithmetic Operations for size " << size << "x" << size << " (Type: " << typeid(T).name() << ") ---\n";
 
-template<typename MatType>
-void test_det_with_timer_and_print(const std::string& name, int n) {
-    std::cout << "Testing " << name << "...\n";
+    Matrix<T> A = Matrix<T>::Generate_matrix(size, size, static_cast<T>(-5), static_cast<T>(5), 10);
+    Matrix<T> B = Matrix<T>::Generate_matrix(size, size, static_cast<T>(-3), static_cast<T>(3), 10);
+    T scalar = static_cast<T>(2);
 
-    auto matrix = MatType::Generate_matrix(n, n, 0.1, 2.0);
+    cout << "Initial Matrices:\n";
+    cout << "Matrix A:\n"; A.print(6);
+    cout << "Matrix B:\n"; B.print(6);
+    cout << "Scalar: " << scalar << "\n\n";
 
-    // Вывод матрицы (если n не слишком большой)
-    if (n <= 10) {
-        std::cout << "Generated matrix:\n";
-        matrix.precise_print(5);
-        std::cout << "\n";
+    // Helper macro to reduce repetition
+    #define MEASURE_AND_PRINT(OP_DESC, OP_EXPR, RESULT_LABEL) \
+    { \
+        Timer t; \
+        t.start(); \
+        auto result = OP_EXPR; \
+        double elapsed_time = t.elapsed(); \
+        cout << "Testing " << OP_DESC << "... Time: " << fixed << setprecision(6) << elapsed_time << " seconds\n"; \
+        cout << RESULT_LABEL << ":\n"; \
+        result.print(6); \
+        cout << endl; \
     }
 
-    // Получаем эталонный определитель
-    auto expected_det = matrix.get_determinant();
+    MEASURE_AND_PRINT("Matrix Addition (A + B)", (A + B), "Result A + B")
+    MEASURE_AND_PRINT("Matrix Subtraction (A - B)", (A - B), "Result A - B")
+    MEASURE_AND_PRINT("Matrix Multiplication (A * B)", (A * B), "Result A * B")
+    MEASURE_AND_PRINT("Matrix + Scalar (A + scalar)", (A + scalar), "Result A + scalar")
+    MEASURE_AND_PRINT("Matrix - Scalar (A - scalar)", (A - scalar), "Result A - scalar")
+    MEASURE_AND_PRINT("Matrix * Scalar (A * scalar)", (A * scalar), "Result A * scalar")
+    MEASURE_AND_PRINT("Scalar * Matrix (scalar * A)", (scalar * A), "Result scalar * A")
 
-    std::cout << "Expected determinant: ";
-    if (expected_det) {
-        std::cout << *expected_det << "\n";
-    } else {
-        std::cout << "(not available)\n";
-    }
+    #undef MEASURE_AND_PRINT
 
-    // Считаем определитель
-    std::optional<typename MatType::value_type> computed_det;
-
-    #ifdef TIME_MEASURE
-    {
-        Timer timer;  // Таймер начинает измерение только тут
-        computed_det = matrix.det();
-    }
-    #else
-    computed_det = matrix.det();
-    #endif
-
-    std::cout << "Computed determinant: ";
-    if (computed_det) {
-        std::cout << *computed_det << "\n";
-    } else {
-        std::cout << "(failed)\n";
-    }
-
-    if (expected_det && computed_det) {
-        if (std::abs(*expected_det - *computed_det) > 1e-9) {
-            std::cerr << "ERROR: " << name << " computed determinant differs from expected!\n";
-            std::cerr << "Expected: " << *expected_det << ", Got: " << *computed_det << "\n";
-        } else {
-            std::cout << name << " determinant: OK.\n";
-        }
-    } else {
-        std::cerr << "ERROR: Either expected or computed determinant is missing.\n";
-    }
-
-    std::cout << "\n";
+    cout << "--- Test Complete for size " << size << "x" << size << " ---\n\n";
 }
 
-int main() {
-    int n;
-    std::cin >> n;
+int main(int argc, char* argv[]) {
+    if (argc != 3) {
+        cerr << "Usage: " << argv[0] << " <data_type> <size>\n";
+        cerr << "Data types: int, double\n";
+        cerr << "Example: " << argv[0] << " double 4\n";
+        cerr << "Note: Output will be printed only for matrices up to 6x6.\n";
+        return 1;
+    }
 
-    // === Запускаем обе реализации ===
-    test_det_with_timer_and_print<Matrix<double>>("Matrix", n);
-    test_det_with_timer_and_print<Matrix_1d<double>>("Matrix_1d", n);
+    string type_str = argv[1];
+    int size = stoi(argv[2]);
+
+    if (size <= 0) {
+        cerr << "Error: Size must be positive.\n";
+        return 1;
+    }
+
+    if (size > 20) { // Just a warning, you can adjust this limit
+         cerr << "Warning: Size " << size << " is large. Consider reducing for better performance timing.\n";
+    }
+
+    try {
+        if (type_str == "int") {
+            run_arithmetic_tests<int>(size);
+        } else if (type_str == "double") {
+            run_arithmetic_tests<double>(size);
+        } else {
+            cerr << "Error: Unsupported data type '" << type_str << "'. Use 'int' or 'double'.\n";
+            return 1;
+        }
+    } catch (const exception& e) {
+        cerr << "Exception occurred: " << e.what() << endl;
+        return 1;
+    }
 
     return 0;
 }
