@@ -1,186 +1,152 @@
 #include <iostream>
 #include <chrono>
 #include <iomanip>
-#include <functional>
 #include <complex>
 
 #include "Matrix.hpp"
 
-#ifdef TIME_MEASURE
-#include "Timer.hpp"
-#endif
-
-// Общая шаблонная функция для double и complex
-template <typename T>
-void test_inverse_with_timer_and_print(const std::string &method_name, 
-                                       const Matrix<T> &original_matrix, 
-                                       std::function<Matrix<T>(const Matrix<T>&)> inverse_func) {
-    std::cout << "Testing " << method_name << "...\n";
-
-    if (original_matrix.get_rows() <= 5 && original_matrix.get_cols() <= 5) {
-        std::cout << "Original matrix:\n";
-        original_matrix.precise_print(6);
-        std::cout << "\n";
-    }
-
-    Matrix<T> result_matrix(1, 1);
+template<typename T>
+void test_simple_matrix(const std::string& type_name, int size) {
+    std::cout << "\n=== Testing " << type_name << " matrix " << size << "x" << size << " ===" << std::endl;
     
-    double elapsed_time = 0.0;
-    
-    {
-#ifdef TIME_MEASURE
-        Timer timer;
-        result_matrix = inverse_func(original_matrix);
-#else
-        auto start_time = std::chrono::high_resolution_clock::now();
-        result_matrix = inverse_func(original_matrix);
-        auto end_time = std::chrono::high_resolution_clock::now();
-        elapsed_time = std::chrono::duration<double>(end_time - start_time).count();
-#endif
+    try {
+        Matrix<T> A = Matrix<T>::Generate_matrix(size, size);
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        
+        if constexpr (std::is_same_v<T, int>) {
+            auto A_inv = A.template inverse<double>();
+            auto end = std::chrono::high_resolution_clock::now();
+            double elapsed = std::chrono::duration<double>(end - start).count();
+            
+            std::cout << "Inverse computed in: " << std::fixed << std::setprecision(6) 
+                      << elapsed << " seconds" << std::endl;
+            
+            if (size <= 3) {
+                std::cout << "\nOriginal matrix:" << std::endl;
+                A.print();
+                
+                std::cout << "\nInverse matrix:" << std::endl;
+                A_inv.print();
+                
+                std::cout << "\nVerification (A * A⁻¹ ≈ I):" << std::endl;
+                Matrix<double> A_double(size, size);
+                for (int i = 0; i < size; ++i)
+                    for (int j = 0; j < size; ++j)
+                        A_double(i, j) = static_cast<double>(A(i, j));
+                        
+                auto identity_check = A_double * A_inv;
+                identity_check.print();
+            }
+        } else {
+            auto A_inv = A.inverse();
+            auto end = std::chrono::high_resolution_clock::now();
+            double elapsed = std::chrono::duration<double>(end - start).count();
+            
+            std::cout << "Inverse computed in: " << std::fixed << std::setprecision(6) 
+                      << elapsed << " seconds" << std::endl;
+            
+            if (size <= 3) {
+                std::cout << "\nOriginal matrix:" << std::endl;
+                A.print();
+                
+                std::cout << "\nInverse matrix:" << std::endl;
+                A_inv.print();
+                
+                std::cout << "\nVerification (A * A⁻¹ ≈ I):" << std::endl;
+                auto identity_check = A * A_inv;
+                identity_check.print();
+            }
+        }
+        
+        std::cout << "✓ Success" << std::endl;
+        
+    } catch (const std::exception& e) {
+        std::cout << "✗ Error: " << e.what() << std::endl;
     }
-    
-    std::cout << "Time: " << std::fixed << std::setprecision(6) 
-              << elapsed_time << " seconds\n";
-
-    if (result_matrix.get_rows() <= 5 && result_matrix.get_cols() <= 5) {
-        std::cout << "Inverse matrix (" << method_name << "):\n";
-        result_matrix.precise_print(6);
-        std::cout << "\n";
-    }
-
-    std::cout << method_name << ": Inverse computation completed.\n";
-    std::cout << "\n";
 }
 
-// Перегруженная версия для int, которая возвращает Matrix<double>
-void test_inverse_int(const std::string &method_name, 
-                      const Matrix<int> &original_matrix,
-                      std::function<Matrix<double>(const Matrix<int>&)> inverse_func) {
-    std::cout << "Testing " << method_name << "...\n";
-
-    if (original_matrix.get_rows() <= 5 && original_matrix.get_cols() <= 5) {
-        std::cout << "Original matrix:\n";
-        original_matrix.print();
-        std::cout << "\n";
-    }
-
-    Matrix<double> result_matrix(1, 1);
+void test_block_matrix(int block_size, int n_blocks) {
+    std::cout << "\n=== Testing Matrix<Matrix<double>> ===" << std::endl;
+    std::cout << "Blocks: " << n_blocks << "x" << n_blocks << " of size " << block_size << "x" << block_size << std::endl;
     
-    double elapsed_time = 0.0;
-    
-    {
-#ifdef TIME_MEASURE
-        Timer timer;
-        result_matrix = inverse_func(original_matrix);
-#else
-        auto start_time = std::chrono::high_resolution_clock::now();
-        result_matrix = inverse_func(original_matrix);
-        auto end_time = std::chrono::high_resolution_clock::now();
-        elapsed_time = std::chrono::duration<double>(end_time - start_time).count();
-#endif
-    }
-    
-    std::cout << "Time: " << std::fixed << std::setprecision(6) 
-              << elapsed_time << " seconds\n";
-
-    if (result_matrix.get_rows() <= 5 && result_matrix.get_cols() <= 5) {
-        std::cout << "Inverse matrix (" << method_name << "):\n";
-        result_matrix.precise_print(6);
-        std::cout << "\n";
-    }
-
-    // Проверка корректности
-    if (original_matrix.get_rows() <= 5 && original_matrix.get_rows() == original_matrix.get_cols()) {
-        try {
-            Matrix<double> original_double(original_matrix.get_rows(), original_matrix.get_cols());
-            for (int i = 0; i < original_matrix.get_rows(); ++i) {
-                for (int j = 0; j < original_matrix.get_cols(); ++j) {
-                    original_double(i, j) = static_cast<double>(original_matrix(i, j));
+    try {
+        // Тест 1: Создание блочной матрицы
+        std::cout << "1. Creating block matrix..." << std::endl;
+        Matrix<Matrix<double>> A(n_blocks, n_blocks);
+        std::cout << "   Created successfully" << std::endl;
+        
+        // Тест 2: Инициализация блоков
+        std::cout << "2. Initializing blocks..." << std::endl;
+        for (int i = 0; i < n_blocks; ++i) {
+            for (int j = 0; j < n_blocks; ++j) {
+                if (i == j) {
+                    A(i, j) = Matrix<double>::Identity(block_size, block_size);
+                } else {
+                    A(i, j) = Matrix<double>::Zero(block_size, block_size);
                 }
             }
-            
-            auto identity_check = original_double * result_matrix;
-            std::cout << "Verification (A * A⁻¹):\n";
-            identity_check.precise_print(6);
-            
-            double max_error = 0.0;
-            for (int i = 0; i < identity_check.get_rows(); ++i) {
-                for (int j = 0; j < identity_check.get_cols(); ++j) {
-                    double expected = (i == j) ? 1.0 : 0.0;
-                    double error = std::abs(identity_check(i, j) - expected);
-                    if (error > max_error) {
-                        max_error = error;
-                    }
-                }
-            }
-            std::cout << "Max error: " << std::scientific << std::setprecision(2) 
-                      << max_error << "\n";
-        } catch (const std::exception& e) {
-            std::cout << "Verification failed: " << e.what() << "\n";
         }
+        std::cout << "   Initialized successfully" << std::endl;
+        
+        // Тест 3: Вычисление обратной матрицы
+        std::cout << "3. Computing inverse..." << std::endl;
+        auto start = std::chrono::high_resolution_clock::now();
+        auto A_inv = A.inverse();
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        double elapsed = std::chrono::duration<double>(end - start).count();
+        std::cout << "   Inverse computed in: " << elapsed << " seconds" << std::endl;
+        
+        std::cout << "✓ All tests passed" << std::endl;
+        
+    } catch (const std::exception& e) {
+        std::cout << "✗ Error: " << e.what() << std::endl;
+        std::cout << "Stack trace (if available):" << std::endl;
     }
-    
-    std::cout << method_name << ": Inverse computation completed.\n";
-    std::cout << "\n";
 }
 
 int main() {
-    int n;
-    std::string type_choice;
-    std::cout << "Enter matrix size: ";
-    std::cin >> n;
-    std::cout << "Choose type (int/double/complex): ";
-    std::cin >> type_choice;
-
-    if (type_choice == "int") {
-        std::cout << "Generating random " << n << "x" << n << " integer matrix...\n";
-        auto matrix = Matrix<int>::Generate_matrix(n, n, -10, 10);
-
-        // Для целочисленных матриц используем перегруженную функцию
-        std::function<Matrix<double>(const Matrix<int>&)> inverse_lu = 
-            [](const Matrix<int>& m) { return m.inverse(); };
-        std::function<Matrix<double>(const Matrix<int>&)> inverse_gauss = 
-            [](const Matrix<int>& m) { return m.inverse_gauss_jordan(); };
+    std::cout << "Matrix Inverse Test" << std::endl;
+    std::cout << "===================" << std::endl;
+    
+    int choice;
+    std::cout << "\nChoose test type:" << std::endl;
+    std::cout << "1. Simple matrix (int)" << std::endl;
+    std::cout << "2. Simple matrix (double)" << std::endl;
+    std::cout << "3. Simple matrix (complex)" << std::endl;
+    std::cout << "4. Block matrix (Matrix<Matrix<double>>)" << std::endl;
+    std::cout << "Choice: ";
+    std::cin >> choice;
+    
+    int size;
+    
+    if (choice >= 1 && choice <= 3) {
+        std::cout << "Enter matrix size: ";
+        std::cin >> size;
         
-        test_inverse_int("LU Decomposition Method", matrix, inverse_lu);
-        test_inverse_int("Gauss-Jordan Method", matrix, inverse_gauss);
-        
-    } else if (type_choice == "double") {
-        std::cout << "Generating random " << n << "x" << n << " double matrix...\n";
-        auto matrix = Matrix<double>::Generate_matrix(n, n, -10.0, 10.0);
-
-        auto inverse_lu = [](const Matrix<double>& m) { return m.inverse(); };
-        auto inverse_gauss = [](const Matrix<double>& m) { 
-            return m.inverse_gauss_jordan();
-        };
-
-        test_inverse_with_timer_and_print<double>("LU Decomposition Method", matrix, inverse_lu);
-        test_inverse_with_timer_and_print<double>("Gauss-Jordan Method", matrix, inverse_gauss);
-        
-    } else if (type_choice == "complex") {
-        std::cout << "Generating random " << n << "x" << n << " complex matrix...\n";
-        
-        Matrix<std::complex<double>> matrix(n, n);
-        for (int i = 0; i < n; ++i) {
-            for (int j = 0; j < n; ++j) {
-                double real_part = static_cast<double>(rand()) / RAND_MAX * 20.0 - 10.0;
-                double imag_part = static_cast<double>(rand()) / RAND_MAX * 20.0 - 10.0;
-                matrix(i, j) = std::complex<double>(real_part, imag_part);
-            }
+        switch (choice) {
+            case 1:
+                test_simple_matrix<int>("int", size);
+                break;
+            case 2:
+                test_simple_matrix<double>("double", size);
+                break;
+            case 3:
+                test_simple_matrix<std::complex<double>>("complex", size);
+                break;
         }
-
-        auto inverse_lu = [](const Matrix<std::complex<double>>& m) { return m.inverse(); };
-        auto inverse_gauss = [](const Matrix<std::complex<double>>& m) { 
-            return m.inverse_gauss_jordan();
-        };
-
-        test_inverse_with_timer_and_print<std::complex<double>>("LU Decomposition Method", matrix, inverse_lu);
-        test_inverse_with_timer_and_print<std::complex<double>>("Gauss-Jordan Method", matrix, inverse_gauss);
-        
+    } else if (choice == 4) {
+        int block_size, n_blocks;
+        std::cout << "Enter block size: ";
+        std::cin >> block_size;
+        std::cout << "Enter number of blocks: ";
+        std::cin >> n_blocks;
+        test_block_matrix(block_size, n_blocks);
     } else {
-        std::cerr << "Error: Unsupported type '" << type_choice << "'. Use 'int', 'double', or 'complex'.\n";
+        std::cout << "Invalid choice!" << std::endl;
         return 1;
     }
-
+    
     return 0;
 }

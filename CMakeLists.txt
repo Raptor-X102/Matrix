@@ -14,6 +14,7 @@ option(ENABLE_TIME_MEASURE "Enable time measurement" OFF)
 option(BUILD_ARITHMETIC_TEST "Build arithmetic operations test" ON)
 option(BUILD_COMPLEX_TEST "Build complex number determinant test" ON)
 option(BUILD_INVERSE_COMPARISON_TEST "Build inverse matrix comparison test" ON)
+option(BUILD_UNIVERSAL_DETERMINANT_TEST "Build universal determinant test" ON)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -42,40 +43,6 @@ if(BUILD_ARITHMETIC_TEST)
     add_executable(matrix_arithmetic_test ${SRC_DIR}/main.cpp)
     if(ENABLE_TIME_MEASURE)
         target_compile_definitions(matrix_arithmetic_test PRIVATE TIME_MEASURE=1)
-    endif()
-endif()
-
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_DEBUG}")
-elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_RELEASE}")
-elseif(CMAKE_BUILD_TYPE STREQUAL "Sanitize")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_SANITIZE}")
-endif()
-
-message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "Time measurement: ${ENABLE_TIME_MEASURE}")
-message(STATUS "Build classic test: ${BUILD_CLASSIC_TEST}")
-message(STATUS "Build arithmetic test: ${BUILD_ARITHMETIC_TEST}")
-message(STATUS "Build complex test: ${BUILD_COMPLEX_TEST}")
-
-find_program(CLANG_FORMAT "clang-format")
-if(CLANG_FORMAT)
-    set(CLANG_FORMAT_FILE "${CMAKE_SOURCE_DIR}/.clang-format")
-    if(EXISTS "${CLANG_FORMAT_FILE}")
-        file(GLOB_RECURSE ALL_SOURCE_FILES
-            "${SRC_DIR}/*.cpp"
-            "${SRC_DIR}/*.c"
-            "${HEADER_DIR}/*.h"
-            "${HEADER_DIR}/*.hpp"
-        )
-        if(ALL_SOURCE_FILES)
-            add_custom_target(format
-                COMMAND ${CLANG_FORMAT} -i --style=file:${CLANG_FORMAT_FILE} ${ALL_SOURCE_FILES}
-                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-                COMMENT "Formatting source files with clang-format"
-            )
-        endif()
     endif()
 endif()
 
@@ -117,5 +84,50 @@ if(BUILD_INVERSE_COMPARISON_TEST)
     target_compile_options(matrix_inverse_comparison_test PRIVATE $<$<CONFIG:RELEASE>:-O3 -DNDEBUG -mavx>)
     if(ENABLE_TIME_MEASURE)
         target_compile_definitions(matrix_inverse_comparison_test PRIVATE TIME_MEASURE=1)
+    endif()
+endif()
+
+if(BUILD_UNIVERSAL_DETERMINANT_TEST)
+    add_executable(matrix_universal_det_test ${SRC_DIR}/main_universal_det.cpp)
+    set_property(TARGET matrix_universal_det_test PROPERTY CXX_STANDARD 17)
+    target_compile_options(matrix_universal_det_test PRIVATE $<$<CONFIG:RELEASE>:-O3 -DNDEBUG -mavx>)
+    if(ENABLE_TIME_MEASURE)
+        target_compile_definitions(matrix_universal_det_test PRIVATE TIME_MEASURE=1)
+    endif()
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_DEBUG}")
+elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_RELEASE}")
+elseif(CMAKE_BUILD_TYPE STREQUAL "Sanitize")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_SANITIZE}")
+endif()
+
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "Time measurement: ${ENABLE_TIME_MEASURE}")
+message(STATUS "Build classic test: ${BUILD_CLASSIC_TEST}")
+message(STATUS "Build arithmetic test: ${BUILD_ARITHMETIC_TEST}")
+message(STATUS "Build complex test: ${BUILD_COMPLEX_TEST}")
+message(STATUS "Build inverse comparison test: ${BUILD_INVERSE_COMPARISON_TEST}")
+message(STATUS "Build universal determinant test: ${BUILD_UNIVERSAL_DETERMINANT_TEST}")
+
+find_program(CLANG_FORMAT "clang-format")
+if(CLANG_FORMAT)
+    set(CLANG_FORMAT_FILE "${CMAKE_SOURCE_DIR}/.clang-format")
+    if(EXISTS "${CLANG_FORMAT_FILE}")
+        file(GLOB_RECURSE ALL_SOURCE_FILES
+            "${SRC_DIR}/*.cpp"
+            "${SRC_DIR}/*.c"
+            "${HEADER_DIR}/*.h"
+            "${HEADER_DIR}/*.hpp"
+        )
+        if(ALL_SOURCE_FILES)
+            add_custom_target(format
+                COMMAND ${CLANG_FORMAT} -i --style=file:${CLANG_FORMAT_FILE} ${ALL_SOURCE_FILES}
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                COMMENT "Formatting source files with clang-format"
+            )
+        endif()
     endif()
 endif()

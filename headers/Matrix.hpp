@@ -21,6 +21,8 @@
 
 #include "Debug_printf.h"
 
+template <typename T> class Matrix;
+
 namespace detail {
 
 template <typename T, typename = void>
@@ -51,6 +53,20 @@ constexpr bool is_builtin_integral_v =
     std::is_same_v<T, char> || std::is_same_v<T, signed char> ||
     std::is_same_v<T, unsigned char>;
 
+template<typename T>
+struct is_matrix : std::false_type {};
+
+template<typename T>
+struct is_matrix<Matrix<T>> : std::true_type {};
+
+template<typename T>
+struct has_abs<Matrix<T>> : has_abs<typename Matrix<T>::value_type> {};
+
+template<typename T>
+struct has_division<Matrix<T>> : has_division<typename Matrix<T>::value_type> {};
+
+template<typename T>
+constexpr bool is_matrix_v = is_matrix<T>::value;
 }
 
 const int Default_iterations = 100;
@@ -64,15 +80,40 @@ private:
 
     std::unique_ptr<std::unique_ptr<T[]>[]> matrix_;
     int rows_, cols_, min_dim_;
-    std::optional<T> determinant_ = std::nullopt;
+    mutable std::optional<T> determinant_ = std::nullopt;
 
     static constexpr auto epsilon = 1e-10;
 
 public:
     using value_type = T;
 
+    Matrix() : rows_(0), cols_(0), min_dim_(0), matrix_(nullptr) {}
+
     Matrix(int rows, int cols) : rows_(rows), cols_(cols), min_dim_(std::min(rows, cols)) {
-        alloc_matrix_();
+        if (rows > 0 && cols > 0) {
+            alloc_matrix_();
+        }
+    }
+
+    Matrix(T value) : rows_(0), cols_(0), min_dim_(0), matrix_(nullptr) {
+        if constexpr (detail::is_matrix_v<T>) {
+            throw std::runtime_error("Cannot create Matrix<Matrix<T>> from single value");
+        }
+    }
+
+    ~Matrix() {
+        if constexpr (detail::is_matrix_v<T>) {
+            if (matrix_) {
+                for (int i = 0; i < rows_; ++i) {
+                    if (matrix_[i]) {
+                        T* raw_ptr = matrix_[i].get();
+                        for (int j = 0; j < cols_; ++j) {
+                            raw_ptr[j].~T();  // Явный вызов деструктора
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Submatrix constructor
@@ -92,10 +133,17 @@ public:
 
     static Matrix Identity(int rows, int cols) {
         Matrix result(rows, cols);
-        int min_dim = result.get_min_dim();
-        for (int i = 0; i < min_dim; i++)
-            result(i, i) = T{1};
-
+        int min_dim = std::min(rows, cols);
+        for (int i = 0; i < min_dim; i++) {
+            if constexpr (detail::is_matrix_v<T>) {
+                using BlockType = typename T::value_type;
+                int block_rows = result(0, 0).get_rows();
+                int block_cols = result(0, 0).get_cols();
+                result(i, i) = Matrix<BlockType>::Identity(block_rows, block_cols);
+            } else {
+                result(i, i) = T{1};
+            }
+        }
         return result;
     }
 
@@ -184,33 +232,48 @@ public:
         T max_val = {},
         int iterations = Default_iterations, 
         T target_determinant_magnitude = T{1},
-        T max_condition_number = {}) {
+        T max_condition_number = {}) 
+    {
         
-        if constexpr (std::is_floating_point_v<T>) {
-            if (min_val == T{} && max_val == T{}) {
-                min_val = T{-10};
-                max_val = T{10};
+        if constexpr (detail::is_matrix_v<T>) {
+            // Generate matrix of matrices
+            Matrix result(rows, cols);
+            for (int i = 0; i < rows; ++i) {
+                for (int j = 0; j < cols; ++j) {
+                    result(i, j) = T::Generate_matrix(
+                        min_val.get_rows(), min_val.get_cols(),
+                        typename T::value_type{-10}, typename T::value_type{10}
+                    );
+                }
             }
-            if (max_condition_number == T{}) {
-                max_condition_number = T{1e10};
-            }
+            return result;
         } else {
-            if (iterations > 10) {
-                iterations = 10;
+            if constexpr (std::is_floating_point_v<T>) {
+                if (min_val == T{} && max_val == T{}) {
+                    min_val = T{-10};
+                    max_val = T{10};
+                }
+                if (max_condition_number == T{}) {
+                    max_condition_number = T{1e10};
+                }
+            } else {
+                if (iterations > 10) {
+                    iterations = 10;
+                }
+                if (max_condition_number == T{}) {
+                    max_condition_number = T{1000000000};
+                }
             }
-            if (max_condition_number == T{}) {
-                max_condition_number = T{1000000000};
-            }
+
+            std::vector<T> diagonal = create_controlled_diagonal(
+                std::min(rows, cols), min_val, max_val, target_determinant_magnitude);
+            Matrix result = Matrix::Diagonal(rows, cols, diagonal);
+            result.fill_upper_triangle(min_val, max_val);
+
+            apply_controlled_transformations(result, rows, cols, min_val, max_val, iterations);
+
+            return result;
         }
-
-        std::vector<T> diagonal = create_controlled_diagonal(
-            std::min(rows, cols), min_val, max_val, target_determinant_magnitude);
-        Matrix result = Matrix::Diagonal(rows, cols, diagonal);
-        result.fill_upper_triangle(min_val, max_val);
-
-        apply_controlled_transformations(result, rows, cols, min_val, max_val, iterations);
-
-        return result;
     }
 
     static Matrix Generate_binary_matrix(int rows, int cols,
@@ -291,28 +354,53 @@ public:
         return result;
     }
 
-    Matrix(const Matrix &rhs) : rows_(rhs.rows_), cols_(rhs.cols_) {
-        alloc_matrix_();
-
-        for (int i = 0; i < rows_; i++)
-            for (int j = 0; j < cols_; j++)
-                matrix_[i][j] = rhs.matrix_[i][j];
+    Matrix(const Matrix& other) : rows_(other.rows_), cols_(other.cols_), min_dim_(other.min_dim_) {
+        if (rows_ > 0 && cols_ > 0) {
+            alloc_matrix_();
+            for (int i = 0; i < rows_; ++i) {
+                for (int j = 0; j < cols_; ++j) {
+                    (*this)(i, j) = other(i, j);
+                }
+            }
+        }
     }
 
-    Matrix &operator=(const Matrix &rhs) {
-        if (this != &rhs) {
-            rows_ = rhs.get_rows(); 
-            cols_ = rhs.get_cols();
-            min_dim_ = rhs.get_min_dim();
-            alloc_matrix_();
-
-            for (int i = 0; i < rows_; i++)
-                for (int j = 0; j < cols_; j++)
-                    matrix_[i][j] = rhs.matrix_[i][j];
+    // Оператор присваивания
+    Matrix& operator=(const Matrix& other) {
+        if (this != &other) {
+            // Освобождаем старую память
+            if constexpr (detail::is_matrix_v<T>) {
+                if (matrix_) {
+                    for (int i = 0; i < rows_; ++i) {
+                        if (matrix_[i]) {
+                            T* raw_ptr = matrix_[i].get();
+                            for (int j = 0; j < cols_; ++j) {
+                                raw_ptr[j].~T();
+                            }
+                        }
+                    }
+                }
+            }
+            
+            rows_ = other.rows_;
+            cols_ = other.cols_;
+            min_dim_ = other.min_dim_;
+            
+            if (rows_ > 0 && cols_ > 0) {
+                alloc_matrix_();
+                for (int i = 0; i < rows_; ++i) {
+                    for (int j = 0; j < cols_; ++j) {
+                        (*this)(i, j) = other(i, j);
+                    }
+                }
+            } else {
+                matrix_.reset();
+            }
         }
-
         return *this;
     }
+
+
 
     Matrix(Matrix &&) = default;
     Matrix &operator=(Matrix &&) = default;
@@ -413,16 +501,57 @@ public:
         return *this;
     }
 
+    Matrix& operator*=(const Matrix& other) {
+        *this = *this * other;
+        return *this;
+    }
+
+    bool operator==(const Matrix& other) const {
+        if (rows_ != other.rows_ || cols_ != other.cols_) return false;
+        for (int i = 0; i < rows_; ++i) {
+            for (int j = 0; j < cols_; ++j) {
+                if (!is_equal((*this)(i, j), other(i, j))) return false;
+            }
+        }
+        return true;
+    }
+
+    bool operator!=(const Matrix& other) const {
+        return !(*this == other);
+    }
+
+    static bool is_equal(const T& a, const T& b) {
+        if constexpr (std::is_floating_point_v<T>) {
+            return std::abs(a - b) < epsilon;
+        } else {
+            return a == b;
+        }
+    }
+
+    Matrix operator-() const {
+        Matrix result(rows_, cols_);
+        for (int i = 0; i < rows_; ++i) {
+            for (int j = 0; j < cols_; ++j) {
+                result(i, j) = -(*this)(i, j);
+            }
+        }
+        return result;
+    }
+
     int get_rows() const { return rows_; }
     int get_cols() const { return cols_; }
     int get_min_dim() const { return min_dim_; }
     std::optional<T> get_determinant() const { return determinant_; }
 
-    static bool is_zero(const T &value) {
-        if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>) {
+    template <typename U = T>
+    static bool is_zero(const U &value) {
+        if constexpr (detail::is_matrix_v<U>) {
+            auto det_opt = value.det();
+            return !det_opt.has_value() || is_zero(*det_opt);
+        } else if constexpr (std::is_same_v<U, float> || std::is_same_v<U, double>) {
             return std::abs(value) < epsilon;
         } else {
-            return value == T{};
+            return value == U{};
         }
     }
 
@@ -435,7 +564,7 @@ public:
             std::swap(matrix_[i], matrix_[j]);
 
             if (determinant_)
-                determinant_ = T{-1} * *determinant_;
+                determinant_ = -*determinant_;
         }
     }
 
@@ -481,15 +610,60 @@ public:
 
     void precise_print(int precision = 15) const {
         int field_width = precision + 8;
-
         for (int i = 0; i < rows_; i++) {
             for (int j = 0; j < cols_; j++) {
-                std::cout << std::setw(field_width) << std::scientific
-                          << std::setprecision(precision) << matrix_[i][j] << " ";
+                if constexpr (detail::is_matrix_v<T>) {
+                    if (rows_ <= 5 && cols_ <= 5 && (*this)(i, j).get_rows() <= 3 && (*this)(i, j).get_cols() <= 3) {
+                        std::cout << "[" << (*this)(i, j).get_rows() << "x" << (*this)(i, j).get_cols() << "] ";
+                    } else {
+                        std::cout << "[SubMatrix] ";
+                    }
+                } else {
+                    std::cout << std::setw(field_width) << std::scientific
+                              << std::setprecision(precision) << matrix_[i][j] << " ";
+                }
             }
-
             std::cout << "\n";
         }
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const Matrix<T>& matrix) {
+        if constexpr (detail::is_matrix_v<T>) {
+            if (matrix.rows_ <= 3 && matrix.cols_ <= 3) {
+                for (int i = 0; i < matrix.rows_; ++i) {
+                    os << "[";
+                    for (int j = 0; j < matrix.cols_; ++j) {
+                        if (j > 0) os << ", ";
+                        if (matrix(i, j).get_rows() <= 3 && matrix(i, j).get_cols() <= 3) {
+                            os << matrix(i, j);
+                        } else {
+                            os << "[Matrix " << matrix(i, j).get_rows()
+                               << "x" << matrix(i, j).get_cols() << "]";
+                        }
+                    }
+                    os << "]";
+                    if (i < matrix.rows_ - 1) os << "\n";
+                }
+            } else {
+                os << "[BlockMatrix " << matrix.rows_ << "x" << matrix.cols_
+                   << " of " << matrix(0, 0).get_rows()
+                   << "x" << matrix(0, 0).get_cols() << "]";
+            }
+        }
+        else {
+            if (matrix.rows_ <= 5 && matrix.cols_ <= 5) {
+                for (int i = 0; i < matrix.rows_; ++i) {
+                    for (int j = 0; j < matrix.cols_; ++j) {
+                        os << matrix(i, j);
+                        if (j < matrix.cols_ - 1) os << " ";
+                    }
+                    if (i < matrix.rows_ - 1) os << "\n";
+                }
+            } else {
+                os << "[Matrix " << matrix.rows_ << "x" << matrix.cols_ << "]";
+            }
+        }
+        return os;
     }
 
     void fill_upper_triangle(
@@ -521,11 +695,9 @@ public:
             return std::nullopt;
 
         int max_val_index = row;
-        using std::abs;
-        auto max_abs = abs(matrix_[row][col]);
-
+        auto max_abs = std::abs(matrix_[row][col]);
         for (int i = row + 1; i < rows_; ++i) {
-            auto current_abs = abs(matrix_[i][col]);
+            auto current_abs = std::abs(matrix_[i][col]);
             if (current_abs > max_abs) {
                 max_val_index = i;
                 max_abs = current_abs;
@@ -535,7 +707,7 @@ public:
         return max_val_index;
     }
 
-    std::optional<T> det(int row, int col, int size) {
+    std::optional<T> det(int row, int col, int size) const {
         if constexpr (detail::is_builtin_integral_v<T>) {
             return det_integer_algorithm(row, col, size);
         } else {
@@ -545,123 +717,258 @@ public:
         }
     }
 
-    std::optional<T> det() {
+    std::optional<T> det() const {
         return det(0, 0, min_dim_);
     }
 
-    std::optional<T> det_numeric_algorithm() {
+    std::optional<T> det_numeric_algorithm() const {
         return det_numeric_impl(0, 0, min_dim_);
     }
 
     template<typename U = T>
-    using inverse_return_type = typename std::conditional<
-        std::is_integral<U>::value,
-        double,
-        U
-    >::type;
+using inverse_return_type = typename std::conditional<
+    std::is_integral<U>::value && !detail::is_matrix<U>::value,
+    double,
+    U
+>::type;
 
-    Matrix<inverse_return_type<>> inverse() const {
-        if (rows_ != cols_) throw std::invalid_argument("Matrix must be square");
-
-        int n = rows_;
-        using ComputeType = inverse_return_type<>;
-        Matrix<ComputeType> lu(n, n);
+  friend auto operator/(const Matrix& A, const Matrix& B) {
+    DEBUG_PRINTF("operator/: A=%dx%d, B=%dx%d\n", A.rows_, A.cols_, B.rows_, B.cols_);
+    
+    if (A.cols_ != B.rows_) {
+        DEBUG_PRINTF("ERROR: A.cols=%d != B.rows=%d\n", A.cols_, B.rows_);
+        throw std::invalid_argument("Matrix dimensions don't match for division (A.cols != B.rows)");
+    }
+    
+    try {
+        using ResultType = inverse_return_type<T>;
+        DEBUG_PRINTF("ResultType: %s\n", typeid(ResultType).name());
         
-        if constexpr (detail::has_abs_v<ComputeType>) {
-            return inverse_impl_with_abs(lu);
-        } else {
-            return inverse_impl_generic(lu);
+        Matrix<ResultType> A_cast = A;
+        Matrix<ResultType> B_cast = B;
+        
+        DEBUG_PRINTF("Computing inverse...\n");
+        Matrix<ResultType> B_inv = B_cast.inverse();
+        DEBUG_PRINTF("B_inv computed: %dx%d\n", B_inv.get_rows(), B_inv.get_cols());
+        
+        DEBUG_PRINTF("Multiplying...\n");
+        auto result = A_cast * B_inv;
+        DEBUG_PRINTF("Division completed\n");
+        return result;
+    } catch (const std::exception& e) {
+        DEBUG_PRINTF("Error in division: %s\n", e.what());
+        throw std::runtime_error("Cannot divide by singular matrix B");
+    }
+} 
+
+template<typename U>
+Matrix<U> cast_to() const {
+    DEBUG_PRINTF("Casting Matrix %dx%d to different type\n", rows_, cols_);
+    Matrix<U> result(rows_, cols_);
+    for (int i = 0; i < rows_; ++i) {
+        for (int j = 0; j < cols_; ++j) {
+            result(i, j) = static_cast<U>((*this)(i, j));
         }
     }
+    return result;
+}
 
-    Matrix<inverse_return_type<>> inverse_gauss_jordan() const {
-        if (rows_ != cols_) {
-            throw std::invalid_argument("Matrix must be square to compute inverse");
-        }
-
-        int n = rows_;
-        using ComputeType = inverse_return_type<>;
-        
-        Matrix<ComputeType> augmented(n, 2 * n);
-        
-        for (int i = 0; i < n; ++i) {
-            for (int j = 0; j < n; ++j) {
-                augmented(i, j) = static_cast<ComputeType>((*this)(i, j));
+    template<typename U>
+    operator Matrix<U>() const {
+        Matrix<U> result(rows_, cols_);
+        for (int i = 0; i < rows_; ++i) {
+            for (int j = 0; j < cols_; ++j) {
+                result(i, j) = static_cast<U>((*this)(i, j));
             }
-            augmented(i, n + i) = ComputeType{1};
+        }
+        return result;
+    }
+
+   template<typename ComputeType>
+Matrix<ComputeType> inverse_impl_with_abs() const {
+    int n = rows_;
+    if (n == 0) return Matrix<ComputeType>();
+    
+    Matrix<ComputeType> augmented(n, 2 * n);
+    
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
+            augmented(i, j) = (*this)(i, j);
         }
         
-        for (int k = 0; k < n; ++k) {
-            int max_row = k;
-            
-            auto get_abs = [](const ComputeType& val) {
-                if constexpr (detail::has_abs_v<ComputeType>) {
-                    return std::abs(val);
-                } else {
-                    return val;
-                }
-            };
-            
-            auto compare = [&](int i, int j) -> bool {
-                auto abs_i = get_abs(augmented(i, k));
-                auto abs_j = get_abs(augmented(j, k));
-                return abs_i < abs_j;
-            };
-            
+        if constexpr (detail::is_matrix_v<ComputeType>) {
+            using BlockType = typename ComputeType::value_type;
+            int block_rows = (*this)(0, 0).get_rows();
+            int block_cols = (*this)(0, 0).get_cols();
+            augmented(i, n + i) = Matrix<BlockType>::Identity(block_rows, block_cols);
+        } else {
+            augmented(i, n + i) = ComputeType(1);
+        }
+    }
+    
+    for (int k = 0; k < n; ++k) {
+        int max_row = k;
+        double max_val = 0.0;
+        
+        if constexpr (detail::is_matrix_v<ComputeType>) {
+            max_val = compute_block_norm(augmented(k, k));
             for (int i = k + 1; i < n; ++i) {
-                if (compare(max_row, i)) {
+                double current_val = compute_block_norm(augmented(i, k));
+                if (current_val > max_val) {
+                    max_val = current_val;
                     max_row = i;
                 }
             }
-            
-            if (augmented(max_row, k) == ComputeType{0}) {
-                throw std::runtime_error("Matrix is singular");
+        } else if constexpr (detail::has_abs_v<ComputeType>) {
+            max_val = std::abs(augmented(k, k));
+            for (int i = k + 1; i < n; ++i) {
+                double current_val = std::abs(augmented(i, k));
+                if (current_val > max_val) {
+                    max_val = current_val;
+                    max_row = i;
+                }
             }
-            
-            if (max_row != k) {
-                augmented.swap_rows(k, max_row);
+        } else {
+            max_val = static_cast<double>(augmented(k, k) * augmented(k, k));
+            for (int i = k + 1; i < n; ++i) {
+                double current_val = static_cast<double>(augmented(i, k) * augmented(i, k));
+                if (current_val > max_val) {
+                    max_val = current_val;
+                    max_row = i;
+                }
             }
-            
-            ComputeType pivot = augmented(k, k);
-            for (int j = k; j < 2 * n; ++j) {
-                augmented(k, j) /= pivot;
+        }
+        
+        if (max_val < epsilon) throw std::runtime_error("Matrix is singular");
+        
+        if (max_row != k) {
+            augmented.swap_rows(k, max_row);
+        }
+        
+        ComputeType pivot = augmented(k, k);
+        
+        for (int j = k; j < 2 * n; ++j) {
+            if constexpr (detail::is_matrix_v<ComputeType>) {
+                auto inv_pivot = pivot.inverse();
+                augmented(k, j) = augmented(k, j) * inv_pivot;
+            } else if constexpr (detail::has_division_v<ComputeType>) {
+                augmented(k, j) = augmented(k, j) / pivot;
+            } else {
+                throw std::runtime_error("Cannot divide for this type");
             }
-            
-            for (int i = 0; i < n; ++i) {
-                if (i != k) {
-                    ComputeType factor = augmented(i, k);
-                    if (factor != ComputeType{0}) {
-                        for (int j = k; j < 2 * n; ++j) {
-                            augmented(i, j) -= factor * augmented(k, j);
-                        }
+        }
+        
+        for (int i = 0; i < n; ++i) {
+            if (i != k) {
+                ComputeType factor = augmented(i, k);
+                bool factor_is_zero = false;
+                
+                if constexpr (detail::is_matrix_v<ComputeType>) {
+                    factor_is_zero = compute_block_norm(factor) < epsilon;
+                } else if constexpr (detail::has_abs_v<ComputeType>) {
+                    factor_is_zero = std::abs(factor) < epsilon;
+                } else {
+                    factor_is_zero = factor == ComputeType{};
+                }
+                
+                if (!factor_is_zero) {
+                    for (int j = k; j < 2 * n; ++j) {
+                        augmented(i, j) = augmented(i, j) - factor * augmented(k, j);
                     }
                 }
             }
         }
-        
-        Matrix<ComputeType> inv(n, n);
-        for (int i = 0; i < n; ++i) {
-            for (int j = 0; j < n; ++j) {
-                inv(i, j) = augmented(i, n + j);
-            }
+    }
+    
+    Matrix<ComputeType> inv(n, n);
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
+            inv(i, j) = augmented(i, n + j);
         }
+    }
+    
+    return inv;
+} 
+
+    template<typename ComputeType = inverse_return_type<T>>
+Matrix<ComputeType> inverse() const {
+    if (rows_ != cols_) throw std::invalid_argument("Matrix must be square");
+    
+    if constexpr (detail::has_abs_v<ComputeType>) {
+        return inverse_impl_with_abs<ComputeType>();
+    } else {
+        return inverse_impl_generic<ComputeType>();
+    }
+}
+
+template <typename U = T>
+    std::optional<int> find_pivot_in_subcol(int row, int col) const {
+        if (row < 0 || row >= rows_ || col < 0 || col >= cols_) {
+            DEBUG_PRINTF("ERROR: index out of range\n");
+            return std::nullopt;
+        }
+
+        if (rows_ == 0)
+            return std::nullopt;
+
+        int max_val_index = row;
         
-        return inv;
+        if constexpr (detail::has_abs_v<U> && !detail::is_matrix_v<U>) {
+            using std::abs;
+            auto max_abs = abs((*this)(row, col));
+            for (int i = row + 1; i < rows_; ++i) {
+                auto current_abs = abs((*this)(i, col));
+                if (current_abs > max_abs) {
+                    max_val_index = i;
+                    max_abs = current_abs;
+                }
+            }
+            return max_val_index;
+        } else if constexpr (detail::is_matrix_v<U>) {
+            DEBUG_PRINTF("MATRIX_TYPE!");
+            double max_norm = compute_block_norm((*this)(row, col));
+            for (int i = row + 1; i < rows_; ++i) {
+                double current_norm = compute_block_norm((*this)(i, col));
+                if (current_norm > max_norm) {
+                    max_val_index = i;
+                    max_norm = current_norm;
+                }
+            }
+            return max_val_index;
+        } else {
+            for (int i = row; i < rows_; ++i) {
+                if (!is_zero((*this)(i, col))) {
+                    return i;
+                }
+            }
+            return std::nullopt;
+        }
     }
 
 private:
-    
     bool alloc_matrix_() {
         if (rows_ <= 0 || cols_ <= 0) {
-            DEBUG_PRINTF("ERROR: invalid dimensions");
             return false;
         }
 
-        matrix_ = std::make_unique<std::unique_ptr<T[]>[]>(rows_);
-
-        for (int i = 0; i < rows_; i++)
-            matrix_[i] = std::make_unique<T[]>(cols_);
-
+        if constexpr (detail::is_matrix_v<T>) {
+            matrix_ = std::unique_ptr<std::unique_ptr<T[]>[]>(new std::unique_ptr<T[]>[rows_]);
+            
+            for (int i = 0; i < rows_; ++i) {
+                T* raw_row = new T[cols_];
+                matrix_[i].reset(raw_row);
+                
+                for (int j = 0; j < cols_; ++j) {
+                    new (&raw_row[j]) T();
+                }
+            }
+        } else {
+            matrix_ = std::make_unique<std::unique_ptr<T[]>[]>(rows_);
+            for (int i = 0; i < rows_; ++i) {
+                matrix_[i] = std::make_unique<T[]>(cols_);
+            }
+        }
+        
         return true;
     }
 
@@ -934,7 +1241,9 @@ private:
         return (g == T{0}) ? T{0} : (a / g) * b;
     }
 
-    std::optional<T> det_integer_algorithm(int row, int col, int size) {
+    
+
+    std::optional<T> det_integer_algorithm(int row, int col, int size) const {
         if (row < 0 || row >= rows_ || col < 0 || col >= cols_ || 
             row + size > rows_ || col + size > cols_ || size <= 0) {
             return std::nullopt;
@@ -1004,62 +1313,82 @@ private:
         return determinant_;
     }
 
-    std::optional<T> det_numeric_impl(int row, int col, int size) {
-        if (row < 0 || row >= rows_ || col < 0 || col >= cols_ || row + size > rows_ ||
-            col + size > cols_ || size <= 0) {
-            return std::nullopt;
+    template <typename U = T>
+    static U identity_element(int rows = 1, int cols = 1) {
+        if constexpr (detail::is_matrix_v<U>) {
+            return U::Identity(rows, cols);
+        } else {
+            return U{1};
         }
+    }
 
-        T determinant = T{1};
-        Matrix matrix_cpy = *this;
-        int sign = 1;
-
-        for (int j = 0; j < size; ++j) {
-            int current_col = col + j;
-            int current_row = row + j;
-
-            std::optional<int> max_index_opt =
-                matrix_cpy.find_max_in_subcol(current_row, current_col);
-            if (!max_index_opt) {
-                return T{};
-            }
-
-            int max_index = *max_index_opt;
-
-            if (max_index != current_row) {
-                matrix_cpy.swap_rows(max_index, current_row);
-                sign = -sign;
-            }
-
-            T pivot = matrix_cpy(current_row, current_col);
-            if (is_zero(pivot)) {
-                determinant_.emplace(T{0});
-                return T{};
-            }
-
-            determinant *= pivot;
-
-            if constexpr (std::is_floating_point_v<T>) {
-                T abs_det = std::abs(determinant);
-                if (abs_det > T{1e50} || abs_det < T{1e-50}) {
-                    int order = static_cast<int>(std::floor(std::log10(abs_det)));
-                    T normalized = determinant / std::pow(T{10}, T(order));
-                    determinant = normalized;
-                }
-            }
-
-            for (int i = current_row + 1; i < row + size; ++i) {
-                T scalar = matrix_cpy(i, current_col) / pivot;
-
-                for (int k = current_col + 1; k < col + size; ++k) {
-                    matrix_cpy(i, k) = matrix_cpy(i, k) - scalar * matrix_cpy(current_row, k);
-                }
-            }
+    template <typename U = T>
+    static U zero_element(int rows = 1, int cols = 1) {
+        if constexpr (detail::is_matrix_v<U>) {
+            return U::Zero(rows, cols);
+        } else {
+            return U{0};
         }
+    }
 
-        determinant_.emplace(determinant * T(sign));
+template <typename U = T>
+std::optional<T> det_numeric_impl(int row, int col, int size) const {
+    if (row < 0 || row >= rows_ || col < 0 || col >= cols_ || 
+        row + size > rows_ || col + size > cols_ || size <= 0) {
+        return std::nullopt;
+    }
+
+    if (size == 1) {
+        determinant_.emplace((*this)(row, col));
         return determinant_;
     }
+
+    // Копируем подматрицу
+    Matrix<T> matrix_cpy = Matrix<T>(*this, row, col, size, size);
+
+    T determinant = identity_element<T>();
+    int sign = 1;
+
+    for (int j = 0; j < size; ++j) {
+        // Ищем опорный элемент
+        std::optional<int> max_index_opt = matrix_cpy.template find_pivot_in_subcol<T>(j, j);
+        if (!max_index_opt) {
+            determinant_.emplace(zero_element<T>());
+            return zero_element<T>();
+        }
+
+        int max_index = *max_index_opt;
+        if (max_index != j) {
+            matrix_cpy.swap_rows(max_index, j);
+            sign = -sign;
+        }
+
+        T pivot = matrix_cpy(j, j);
+        
+        if (is_zero(pivot)) {
+            determinant_.emplace(zero_element<T>());
+            return zero_element<T>();
+        }
+
+        determinant = determinant * pivot;
+
+        // Исключение Гаусса
+        for (int i = j + 1; i < size; ++i) {
+            T scalar = matrix_cpy(i, j) / pivot;
+            
+            for (int k = j + 1; k < size; ++k) {
+                matrix_cpy(i, k) = matrix_cpy(i, k) - scalar * matrix_cpy(j, k);
+            }
+        }
+    }
+
+    if (sign == -1) {
+        determinant = -determinant;
+    }
+    
+    determinant_ = determinant;
+    return determinant_;
+}
 
     static int generate_random_int_(int min = 1, int max = 100) {
         static std::random_device rd;
@@ -1210,123 +1539,191 @@ private:
     }
     #endif
 
-    template<typename AlgorithmTag>
-    static Matrix multiply_impl(const Matrix& A, const Matrix& B) {
-        if (A.cols_ != B.rows_) {
-            throw std::invalid_argument("Matrix dimensions don't match for multiplication (A.cols != B.rows)");
-        }
+   template<typename AlgorithmTag>
+static Matrix multiply_impl(const Matrix& A, const Matrix& B) {
+    DEBUG_PRINTF("multiply_impl: A=%dx%d, B=%dx%d\n", A.rows_, A.cols_, B.rows_, B.cols_);
+    
+    if (A.cols_ != B.rows_) {
+        DEBUG_PRINTF("ERROR: A.cols=%d != B.rows=%d\n", A.cols_, B.rows_);
+        throw std::invalid_argument("Matrix dimensions don't match for multiplication (A.cols != B.rows)");
+    }
 
-        Matrix result(A.rows_, B.cols_);
+    Matrix result(A.rows_, B.cols_);
+    DEBUG_PRINTF("Result matrix: %dx%d\n", result.rows_, result.cols_);
 
-        if constexpr (std::is_same_v<AlgorithmTag, BasicAlgorithm>) {
-            matrix_multiply_basic_impl(A, B, result);
+    if constexpr (std::is_same_v<AlgorithmTag, BasicAlgorithm>) {
+        matrix_multiply_basic_impl(A, B, result);
+    }
+    #ifdef __AVX__
+    else if constexpr (std::is_same_v<AlgorithmTag, AvxAlgorithm>) {
+        if constexpr (std::is_same_v<T, double>) {
+             matrix_multiply_avx_impl(A, B, result);
+        } else if constexpr (std::is_same_v<T, float>) {
+             matrix_multiply_avx_impl_float(A, B, result);
+        } else {
+             matrix_multiply_basic_impl(A, B, result);
         }
-        #ifdef __AVX__
-        else if constexpr (std::is_same_v<AlgorithmTag, AvxAlgorithm>) {
-            if constexpr (std::is_same_v<T, double>) {
-                 matrix_multiply_avx_impl(A, B, result);
-            } else if constexpr (std::is_same_v<T, float>) {
-                 matrix_multiply_avx_impl_float(A, B, result);
+    }
+    #endif 
+    else {
+        matrix_multiply_basic_impl(A, B, result);
+    }
+
+    DEBUG_PRINTF("Multiplication completed\n");
+    return result;
+} 
+
+template<typename ComputeType>
+static bool is_element_zero_impl(const ComputeType& elem) {
+    if constexpr (detail::is_matrix_v<ComputeType>) {
+        // Для блочных матриц проверяем каждый элемент
+        for (int i = 0; i < elem.get_rows(); ++i) {
+            for (int j = 0; j < elem.get_cols(); ++j) {
+                if (!is_element_zero_impl(elem(i, j))) return false;
+            }
+        }
+        return true;
+    } else if constexpr (detail::has_abs_v<ComputeType>) {
+        return std::abs(elem) < epsilon;
+    } else {
+        return elem == ComputeType{};
+    }
+}
+
+template<typename U>
+    static double compute_block_norm(const U& block) {
+        if constexpr (detail::is_matrix_v<U>) {
+            double norm = 0.0;
+            for (int i = 0; i < block.get_rows(); ++i) {
+                for (int j = 0; j < block.get_cols(); ++j) {
+                    double val = compute_block_norm(block(i, j));
+                    norm += val * val;
+                }
+            }
+            return std::sqrt(norm);
+        } else if constexpr (detail::has_abs_v<U>) {
+            return std::abs(block);
+        } else {
+            return static_cast<double>(block * block);
+        }
+    }
+
+template<typename ComputeType>
+void initialize_augmented_matrix(Matrix<ComputeType>& augmented) const {
+    int n = rows_;
+    
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
+            augmented(i, j) = (*this)(i, j);
+        }
+    }
+    
+    for (int i = 0; i < n; ++i) {
+        if constexpr (detail::is_matrix_v<ComputeType>) {
+            using BlockType = typename ComputeType::value_type;
+            int block_rows = (*this)(0, 0).get_rows();
+            int block_cols = (*this)(0, 0).get_cols();
+            Matrix<BlockType> identity = Matrix<BlockType>::Identity(block_rows, block_cols);
+            augmented(i, n + i) = identity;
+        } else {
+            augmented(i, n + i) = ComputeType(1);
+        }
+    }
+}
+
+template<typename ComputeType>
+int find_pivot_row(const Matrix<ComputeType>& augmented, int col) const {
+    int n = augmented.get_rows();
+    int pivot_row = col;
+    
+    if constexpr (detail::is_matrix_v<ComputeType>) {
+        double pivot_norm = compute_block_norm(augmented(col, col));
+        
+        for (int i = col + 1; i < n; ++i) {
+            double current_norm = compute_block_norm(augmented(i, col));
+            if (current_norm > pivot_norm) {
+                pivot_norm = current_norm;
+                pivot_row = i;
+            }
+        }
+    } else if constexpr (detail::has_abs_v<ComputeType>) {
+        auto pivot_norm = std::abs(augmented(col, col));
+        
+        for (int i = col + 1; i < n; ++i) {
+            auto current_norm = std::abs(augmented(i, col));
+            if (current_norm > pivot_norm) {
+                pivot_norm = current_norm;
+                pivot_row = i;
+            }
+        }
+    } else {
+        auto pivot_norm = augmented(col, col) * augmented(col, col);
+        
+        for (int i = col + 1; i < n; ++i) {
+            auto current_norm = augmented(i, col) * augmented(i, col);
+            if (current_norm > pivot_norm) {
+                pivot_norm = current_norm;
+                pivot_row = i;
+            }
+        }
+    }
+    
+    return pivot_row;
+}
+
+template<typename ComputeType>
+static void normalize_row(Matrix<ComputeType>& augmented, int row) {
+    int n = augmented.get_rows();
+    ComputeType pivot = augmented(row, row);
+    
+    if constexpr (detail::is_matrix_v<ComputeType>) {
+        auto inv_pivot = pivot.inverse();
+        for (int j = row; j < 2 * n; ++j) {
+            augmented(row, j) = augmented(row, j) * inv_pivot;
+        }
+    } else if constexpr (detail::has_division_v<ComputeType>) {
+        for (int j = row; j < 2 * n; ++j) {
+            augmented(row, j) = augmented(row, j) / pivot;
+        }
+    } else {
+        throw std::runtime_error("Cannot normalize row for this type");
+    }
+}
+
+template<typename ComputeType>
+static void eliminate_rows(Matrix<ComputeType>& augmented, int pivot_row) {
+    int n = augmented.get_rows();
+    
+    for (int i = 0; i < n; ++i) {
+        if (i != pivot_row) {
+            ComputeType factor = augmented(i, pivot_row);
+            
+            bool factor_is_zero = false;
+            if constexpr (detail::is_matrix_v<ComputeType>) {
+                factor_is_zero = compute_block_norm(factor) < epsilon;
+            } else if constexpr (detail::has_abs_v<ComputeType>) {
+                factor_is_zero = std::abs(factor) < epsilon;
             } else {
-                 matrix_multiply_basic_impl(A, B, result);
+                factor_is_zero = factor == ComputeType{};
+            }
+            
+            if (!factor_is_zero) {
+                for (int j = pivot_row; j < 2 * n; ++j) {
+                    augmented(i, j) = augmented(i, j) - factor * augmented(pivot_row, j);
+                }
             }
         }
-        #endif 
-        else {
-            matrix_multiply_basic_impl(A, B, result);
-        }
-
-        return result;
     }
+}
 
     template<typename ComputeType>
-    Matrix<ComputeType> inverse_impl_with_abs(Matrix<ComputeType>& A) const {
-        int n = rows_;
-        
-        for (int i = 0; i < n; ++i)
-            for (int j = 0; j < n; ++j)
-                A(i, j) = static_cast<ComputeType>((*this)(i, j));
-        
-        std::vector<int> perm(n);
-        std::vector<double> scale(n);
-        
-        for (int i = 0; i < n; ++i) {
-            perm[i] = i;
-            double max_val = 0.0;
-            for (int j = 0; j < n; ++j) {
-                double abs_val = std::abs(A(i, j));
-                if (abs_val > max_val) max_val = abs_val;
-            }
-            if (max_val == 0.0) throw std::runtime_error("Matrix is singular");
-            scale[i] = 1.0 / max_val;
-        }
-        
-        for (int k = 0; k < n; ++k) {
-            int max_row = k;
-            double max_val = std::abs(A(k, k)) * scale[k];
-            
-            for (int i = k + 1; i < n; ++i) {
-                double abs_val = std::abs(A(i, k)) * scale[i];
-                if (abs_val > max_val) {
-                    max_val = abs_val;
-                    max_row = i;
-                }
-            }
-            
-            if (max_val == 0.0) throw std::runtime_error("Matrix is singular");
-            
-            if (max_row != k) {
-                A.swap_rows(k, max_row);
-                std::swap(scale[k], scale[max_row]);
-                std::swap(perm[k], perm[max_row]);
-            }
-            
-            ComputeType pivot = A(k, k);
-            for (int i = k + 1; i < n; ++i) {
-                ComputeType factor = A(i, k) / pivot;
-                A(i, k) = factor;
-                for (int j = k + 1; j < n; ++j) {
-                    A(i, j) -= factor * A(k, j);
-                }
-            }
-        }
-        
+    static Matrix<ComputeType> extract_inverse(const Matrix<ComputeType>& augmented) {
+        int n = augmented.get_rows();
         Matrix<ComputeType> inv(n, n);
-        Matrix<ComputeType> B(n, n);
         
         for (int i = 0; i < n; ++i) {
             for (int j = 0; j < n; ++j) {
-                B(i, j) = (perm[i] == j) ? ComputeType{1} : ComputeType{0};
-            }
-        }
-        
-        for (int i = 0; i < n; ++i) {
-            ComputeType* B_i = &B(i, 0);
-            ComputeType* A_i = &A(i, 0);
-            
-            for (int j = 0; j < n; ++j) {
-                ComputeType sum = B_i[j];
-                for (int k = 0; k < i; ++k) {
-                    ComputeType* B_k = &B(k, 0);
-                    sum -= A_i[k] * B_k[j];
-                }
-                B_i[j] = sum;
-            }
-        }
-        
-        for (int i = n - 1; i >= 0; --i) {
-            ComputeType* inv_i = &inv(i, 0);
-            ComputeType* B_i = &B(i, 0);
-            ComputeType* A_i = &A(i, 0);
-            ComputeType pivot = A_i[i];
-            
-            for (int j = 0; j < n; ++j) {
-                ComputeType sum = B_i[j];
-                for (int k = i + 1; k < n; ++k) {
-                    ComputeType* inv_k = &inv(k, 0);
-                    sum -= A_i[k] * inv_k[j];
-                }
-                inv_i[j] = sum / pivot;
+                inv(i, j) = augmented(i, n + j);
             }
         }
         
@@ -1334,66 +1731,129 @@ private:
     }
 
     template<typename ComputeType>
-    Matrix<ComputeType> inverse_impl_generic(Matrix<ComputeType>& A) const {
-        int n = rows_;
-
-        for (int i = 0; i < n; ++i)
-            for (int j = 0; j < n; ++j)
-                A(i, j) = static_cast<ComputeType>((*this)(i, j));
-
-        std::vector<int> perm(n);
-        for (int i = 0; i < n; ++i)
-            perm[i] = i;
-
-        for (int k = 0; k < n; ++k) {
-            int max_row = k;
-            while (max_row < n && A(max_row, k) == ComputeType{0})
-                ++max_row;
-
-            if (max_row == n)
-                throw std::runtime_error("Matrix is singular");
-
-            if (max_row != k) {
-                A.swap_rows(k, max_row);
-                std::swap(perm[k], perm[max_row]);
-            }
-
-            ComputeType pivot = A(k, k);
-            for (int i = k + 1; i < n; ++i) {
-                ComputeType factor = A(i, k) / pivot;
-                A(i, k) = factor;
-                for (int j = k + 1; j < n; ++j) {
-                    A(i, j) -= factor * A(k, j);
-                }
-            }
+Matrix<ComputeType> inverse_impl_generic() const {
+    DEBUG_PRINTF("inverse_impl_generic: matrix %dx%d\n", rows_, cols_);
+    
+    if (rows_ != cols_) throw std::invalid_argument("Matrix must be square");
+    
+    int n = rows_;
+    if (n == 0) return Matrix<ComputeType>();
+    
+    Matrix<ComputeType> augmented(n, 2 * n);
+    
+    DEBUG_PRINTF("Initializing augmented matrix\n");
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
+            augmented(i, j) = (*this)(i, j);
         }
-
-        Matrix<ComputeType> inv(n, n);
         
-        for (int col = 0; col < n; ++col) {
-            std::vector<ComputeType> b(n, ComputeType{0});
-            
-            for (int i = 0; i < n; ++i) {
-                b[i] = (perm[i] == col) ? ComputeType{1} : ComputeType{0};
-            }
-            
-            for (int i = 0; i < n; ++i) {
-                ComputeType sum = b[i];
-                for (int j = 0; j < i; ++j) {
-                    sum -= A(i, j) * b[j];
+        if constexpr (detail::is_matrix_v<ComputeType>) {
+            using BlockType = typename ComputeType::value_type;
+            int block_rows = (*this)(0, 0).get_rows();
+            int block_cols = (*this)(0, 0).get_cols();
+            augmented(i, n + i) = Matrix<BlockType>::Identity(block_rows, block_cols);
+        } else {
+            augmented(i, n + i) = ComputeType(1);
+        }
+    }
+    
+    DEBUG_PRINTF("Starting Gauss-Jordan elimination\n");
+    for (int k = 0; k < n; ++k) {
+        DEBUG_PRINTF("Step %d\n", k);
+        
+        int pivot_row = k;
+        double max_val = 0.0;
+        
+        if constexpr (detail::is_matrix_v<ComputeType>) {
+            max_val = compute_block_norm(augmented(k, k));
+            for (int i = k + 1; i < n; ++i) {
+                double current_val = compute_block_norm(augmented(i, k));
+                if (current_val > max_val) {
+                    max_val = current_val;
+                    pivot_row = i;
                 }
-                b[i] = sum;
             }
-            
-            for (int i = n - 1; i >= 0; --i) {
-                ComputeType sum = b[i];
-                for (int j = i + 1; j < n; ++j) {
-                    sum -= A(i, j) * inv(j, col);
+        } else if constexpr (detail::has_abs_v<ComputeType>) {
+            max_val = std::abs(augmented(k, k));
+            for (int i = k + 1; i < n; ++i) {
+                double current_val = std::abs(augmented(i, k));
+                if (current_val > max_val) {
+                    max_val = current_val;
+                    pivot_row = i;
                 }
-                inv(i, col) = sum / A(i, i);
+            }
+        } else {
+            max_val = static_cast<double>(augmented(k, k) * augmented(k, k));
+            for (int i = k + 1; i < n; ++i) {
+                double current_val = static_cast<double>(augmented(i, k) * augmented(i, k));
+                if (current_val > max_val) {
+                    max_val = current_val;
+                    pivot_row = i;
+                }
             }
         }
-
-        return inv;
+        
+        DEBUG_PRINTF("Pivot row: %d, max_val: %f\n", pivot_row, max_val);
+        
+        if (max_val < epsilon) throw std::runtime_error("Matrix is singular");
+        
+        if (pivot_row != k) {
+            DEBUG_PRINTF("Swapping rows %d and %d\n", k, pivot_row);
+            augmented.swap_rows(k, pivot_row);
+        }
+        
+        ComputeType pivot = augmented(k, k);
+        DEBUG_PRINTF("Pivot element type: %s\n", typeid(pivot).name());
+        
+        if constexpr (detail::is_matrix_v<ComputeType>) {
+            DEBUG_PRINTF("Pivot matrix size: %dx%d\n", pivot.get_rows(), pivot.get_cols());
+            auto inv_pivot = pivot.inverse();
+            DEBUG_PRINTF("inv_pivot size: %dx%d\n", inv_pivot.get_rows(), inv_pivot.get_cols());
+            for (int j = k; j < 2 * n; ++j) {
+                DEBUG_PRINTF("Normalizing column %d\n", j);
+                augmented(k, j) = augmented(k, j) * inv_pivot;
+            }
+        } else if constexpr (detail::has_division_v<ComputeType>) {
+            for (int j = k; j < 2 * n; ++j) {
+                augmented(k, j) = augmented(k, j) / pivot;
+            }
+        } else {
+            throw std::runtime_error("Cannot divide for this type");
+        }
+        
+        DEBUG_PRINTF("Eliminating other rows\n");
+        for (int i = 0; i < n; ++i) {
+            if (i != k) {
+                ComputeType factor = augmented(i, k);
+                bool factor_is_zero = false;
+                
+                if constexpr (detail::is_matrix_v<ComputeType>) {
+                    factor_is_zero = compute_block_norm(factor) < epsilon;
+                } else if constexpr (detail::has_abs_v<ComputeType>) {
+                    factor_is_zero = std::abs(factor) < epsilon;
+                } else {
+                    factor_is_zero = factor == ComputeType{};
+                }
+                
+                if (!factor_is_zero) {
+                    DEBUG_PRINTF("Eliminating row %d using row %d\n", i, k);
+                    for (int j = k; j < 2 * n; ++j) {
+                        augmented(i, j) = augmented(i, j) - factor * augmented(k, j);
+                    }
+                }
+            }
+        }
     }
+    
+    DEBUG_PRINTF("Extracting inverse matrix\n");
+    Matrix<ComputeType> inv(n, n);
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
+            inv(i, j) = augmented(i, n + j);
+        }
+    }
+    
+    return inv;
+}
+
 };
