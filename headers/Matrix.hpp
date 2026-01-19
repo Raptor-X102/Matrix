@@ -25,48 +25,301 @@ template <typename T> class Matrix;
 
 namespace detail {
 
-template <typename T, typename = void>
-struct has_division : std::false_type {};
-template <typename T>
-struct has_division<T, std::void_t<decltype(std::declval<T>() / std::declval<T>())>>
-    : std::true_type {};
-template <typename T>
-constexpr bool has_division_v = has_division<T>::value;
+    template <typename T, typename = void>
+    struct has_division : std::false_type {};
+    template <typename T>
+    struct has_division<T, std::void_t<decltype(std::declval<T>() / std::declval<T>())>>
+        : std::true_type {};
+    template <typename T>
+    constexpr bool has_division_v = has_division<T>::value;
 
-template <typename T, typename = void>
-struct has_abs : std::false_type {};
-template <typename T>
-struct has_abs<T, std::void_t<decltype(std::abs(std::declval<T>()))>>
-    : std::true_type {};
-template <typename T>
-constexpr bool has_abs_v = has_abs<T>::value;
+    template <typename T, typename = void>
+    struct has_abs : std::false_type {};
+    template <typename T>
+    struct has_abs<T, std::void_t<decltype(std::abs(std::declval<T>()))>>
+        : std::true_type {};
+    template <typename T>
+    constexpr bool has_abs_v = has_abs<T>::value;
 
-template <typename T>
-constexpr bool is_ordered_v = std::is_arithmetic_v<T>;
+    template <typename T>
+    constexpr bool is_ordered_v = std::is_arithmetic_v<T>;
 
-template <typename T>
-constexpr bool is_builtin_integral_v =
-    std::is_same_v<T, int> || std::is_same_v<T, long> ||
-    std::is_same_v<T, long long> || std::is_same_v<T, unsigned int> ||
-    std::is_same_v<T, unsigned long> || std::is_same_v<T, unsigned long long> ||
-    std::is_same_v<T, short> || std::is_same_v<T, unsigned short> ||
-    std::is_same_v<T, char> || std::is_same_v<T, signed char> ||
-    std::is_same_v<T, unsigned char>;
+    template <typename T>
+    constexpr bool is_builtin_integral_v =
+        std::is_same_v<T, int> || std::is_same_v<T, long> ||
+        std::is_same_v<T, long long> || std::is_same_v<T, unsigned int> ||
+        std::is_same_v<T, unsigned long> || std::is_same_v<T, unsigned long long> ||
+        std::is_same_v<T, short> || std::is_same_v<T, unsigned short> ||
+        std::is_same_v<T, char> || std::is_same_v<T, signed char> ||
+        std::is_same_v<T, unsigned char>;
 
-template<typename T>
-struct is_matrix : std::false_type {};
+    template<typename T>
+    struct is_matrix : std::false_type {};
 
-template<typename T>
-struct is_matrix<Matrix<T>> : std::true_type {};
+    template<typename T>
+    struct is_matrix<Matrix<T>> : std::true_type {};
 
-template<typename T>
-struct has_abs<Matrix<T>> : has_abs<typename Matrix<T>::value_type> {};
+    template<typename T>
+    struct has_abs<Matrix<T>> : has_abs<typename Matrix<T>::value_type> {};
 
-template<typename T>
-struct has_division<Matrix<T>> : has_division<typename Matrix<T>::value_type> {};
+    template<typename T>
+    struct has_division<Matrix<T>> : has_division<typename Matrix<T>::value_type> {};
 
-template<typename T>
-constexpr bool is_matrix_v = is_matrix<T>::value;
+    template<typename T>
+    constexpr bool is_matrix_v = is_matrix<T>::value;
+
+    template<typename T>
+    constexpr bool can_use_avx() {
+        return std::is_same_v<T, double> || std::is_same_v<T, float>;
+    }
+
+    template<typename T, typename U, typename = void>
+    struct is_valid_scalar_operation : std::false_type {};
+    
+    template<typename T, typename U>
+    struct is_valid_scalar_operation<T, U, 
+        std::void_t<decltype(std::declval<T>() * std::declval<U>())>
+    > : std::true_type {};
+    
+    template<typename T, typename U>
+    constexpr bool is_valid_scalar_operation_v = is_valid_scalar_operation<T, U>::value;
+    
+    template<typename T>
+    constexpr bool is_avx_float = std::is_same_v<T, float>;
+    
+    template<typename T>
+    constexpr bool is_avx_double = std::is_same_v<T, double>;
+    
+    template<typename T>
+    constexpr bool is_avx_compatible = is_avx_float<T> || is_avx_double<T>;
+
+    template<typename T, typename = void>
+    struct can_cast_to_double : std::false_type {};
+
+    template<typename T>
+    struct can_cast_to_double<T, std::void_t<decltype(static_cast<double>(std::declval<T>()))>>
+        : std::true_type {};
+
+    template<typename T>
+    constexpr bool can_cast_to_double_v = can_cast_to_double<T>::value;
+
+    template<typename T, typename = void>
+    struct can_cast_to_float : std::false_type {};
+
+    template<typename T>
+    struct can_cast_to_float<T, std::void_t<decltype(static_cast<float>(std::declval<T>()))>>
+        : std::true_type {};
+
+    template<typename T>
+    constexpr bool can_cast_to_float_v = can_cast_to_float<T>::value;
+
+    // Утилита для удаления всех ссылок
+    template<typename T>
+    struct remove_all_ref {
+        using type = T;
+    };
+    
+    template<typename T>
+    struct remove_all_ref<T&> {
+        using type = typename remove_all_ref<T>::type;
+    };
+    
+    template<typename T>
+    struct remove_all_ref<T&&> {
+        using type = typename remove_all_ref<T>::type;
+    };
+    
+    template<typename T>
+    using remove_all_ref_t = typename remove_all_ref<T>::type;
+
+    // Базовый common_type который всегда удаляет ссылки
+    template<typename T, typename U>
+    struct base_common_type {
+        using type = remove_all_ref_t<typename std::common_type<T, U>::type>;
+    };
+
+    template<typename T, typename U>
+    using base_common_type_t = typename base_common_type<T, U>::type;
+
+    // Обертка над common_type с поддержкой Matrix и удалением ссылок
+    template<typename T, typename U, typename = void>
+    struct my_common_type_impl {
+        using type = base_common_type_t<T, U>;
+    };
+
+    // Специализация для Matrix<T> и Matrix<U>
+    template<typename T, typename U>
+    struct my_common_type_impl<Matrix<T>, Matrix<U>> {
+        using type = Matrix<base_common_type_t<T, U>>;
+    };
+
+    // Специализация для Matrix<T> и скаляра U
+    template<typename T, typename U>
+    struct my_common_type_impl<Matrix<T>, U, 
+        std::enable_if_t<!is_matrix_v<U>>
+    > {
+        using type = Matrix<base_common_type_t<T, U>>;
+    };
+
+    // Специализация для скаляра T и Matrix<U>
+    template<typename T, typename U>
+    struct my_common_type_impl<T, Matrix<U>, 
+        std::enable_if_t<!is_matrix_v<T>>
+    > {
+        using type = Matrix<base_common_type_t<T, U>>;
+    };
+
+    template<typename T, typename U>
+    struct my_common_type : my_common_type_impl<T, U> {};
+
+    template<typename T, typename U>
+    using common_type_t = typename my_common_type<T, U>::type;
+
+    // Проверка существования общего типа
+    template<typename T, typename U, typename = void>
+    struct common_type_exists : std::false_type {};
+    
+    template<typename T, typename U>
+    struct common_type_exists<T, U, 
+        std::void_t<common_type_t<T, U>>
+    > : std::true_type {};
+    
+    template<typename T, typename U>
+    constexpr bool common_type_exists_v = common_type_exists<T, U>::value;
+
+    // Упрощенный matrix_common_type который всегда удаляет ссылки
+    template<typename T, typename U>
+    struct matrix_common_type {
+    private:
+        // Вспомогательная функция для определения типа
+        static auto test() -> decltype(true ? std::declval<remove_all_ref_t<T>>() : std::declval<remove_all_ref_t<U>>());
+        using test_type = decltype(test());
+    public:
+        using type = remove_all_ref_t<test_type>;
+    };
+
+    template<typename T, typename U>
+    struct matrix_common_type<Matrix<T>, Matrix<U>> {
+        using type = Matrix<typename matrix_common_type<T, U>::type>;
+    };
+
+    template<typename T, typename U>
+    using matrix_common_type_t = typename matrix_common_type<T, U>::type;
+
+    // Трейты для определения типа результата операций (всегда без ссылок)
+    template<typename T, typename U, typename = void>
+    struct result_type_mul_impl {
+        using type = void;
+    };
+    
+    template<typename T, typename U>
+    struct result_type_mul_impl<T, U, 
+        std::void_t<decltype(std::declval<remove_all_ref_t<T>>() * std::declval<remove_all_ref_t<U>>())>
+    > {
+        using type = remove_all_ref_t<
+            decltype(std::declval<remove_all_ref_t<T>>() * std::declval<remove_all_ref_t<U>>())
+        >;
+    };
+    
+    template<typename T, typename U>
+    struct result_type_mul : result_type_mul_impl<T, U> {};
+    
+    template<typename T, typename U>
+    using result_type_mul_t = typename result_type_mul<T, U>::type;
+    
+    template<typename T, typename U, typename = void>
+    struct result_type_add_impl {
+        using type = void;
+    };
+    
+    template<typename T, typename U>
+    struct result_type_add_impl<T, U, 
+        std::void_t<decltype(std::declval<remove_all_ref_t<T>>() + std::declval<remove_all_ref_t<U>>())>
+    > {
+        using type = remove_all_ref_t<
+            decltype(std::declval<remove_all_ref_t<T>>() + std::declval<remove_all_ref_t<U>>())
+        >;
+    };
+    
+    template<typename T, typename U>
+    struct result_type_add : result_type_add_impl<T, U> {};
+    
+    template<typename T, typename U>
+    using result_type_add_t = typename result_type_add<T, U>::type;
+    
+    template<typename T, typename U, typename = void>
+    struct result_type_sub_impl {
+        using type = void;
+    };
+    
+    template<typename T, typename U>
+    struct result_type_sub_impl<T, U, 
+        std::void_t<decltype(std::declval<remove_all_ref_t<T>>() - std::declval<remove_all_ref_t<U>>())>
+    > {
+        using type = remove_all_ref_t<
+            decltype(std::declval<remove_all_ref_t<T>>() - std::declval<remove_all_ref_t<U>>())
+        >;
+    };
+    
+    template<typename T, typename U>
+    struct result_type_sub : result_type_sub_impl<T, U> {};
+    
+    template<typename T, typename U>
+    using result_type_sub_t = typename result_type_sub<T, U>::type;
+    
+    template<typename T, typename U, typename = void>
+    struct result_type_div_impl {
+        using type = void;
+    };
+    
+    template<typename T, typename U>
+    struct result_type_div_impl<T, U, 
+        std::void_t<decltype(std::declval<remove_all_ref_t<T>>() / std::declval<remove_all_ref_t<U>>())>
+    > {
+        using type = remove_all_ref_t<
+            decltype(std::declval<remove_all_ref_t<T>>() / std::declval<remove_all_ref_t<U>>())
+        >;
+    };
+    
+    template<typename T, typename U>
+    struct result_type_div : result_type_div_impl<T, U> {};
+    
+    template<typename T, typename U>
+    using result_type_div_t = typename result_type_div<T, U>::type;
+
+    // Вспомогательная функция для AVX умножения на скаляр
+    template<typename T>
+    void avx_multiply_scalar_impl(T* dest, const T* src, T scalar, size_t count) {
+        #ifdef __AVX__
+            if constexpr (std::is_same_v<T, double>) {
+                __m256d scalar_vec = _mm256_set1_pd(scalar);
+                size_t i = 0;
+                for (; i + 4 <= count; i += 4) {
+                    __m256d vec = _mm256_loadu_pd(src + i);
+                    vec = _mm256_mul_pd(vec, scalar_vec);
+                    _mm256_storeu_pd(dest + i, vec);
+                }
+                for (; i < count; ++i) {
+                    dest[i] = src[i] * scalar;
+                }
+            } else if constexpr (std::is_same_v<T, float>) {
+                __m256 scalar_vec = _mm256_set1_ps(scalar);
+                size_t i = 0;
+                for (; i + 8 <= count; i += 8) {
+                    __m256 vec = _mm256_loadu_ps(src + i);
+                    vec = _mm256_mul_ps(vec, scalar_vec);
+                    _mm256_storeu_ps(dest + i, vec);
+                }
+                for (; i < count; ++i) {
+                    dest[i] = src[i] * scalar;
+                }
+            }
+        #else
+            for (size_t i = 0; i < count; ++i) {
+                dest[i] = src[i] * scalar;
+            }
+        #endif
+    }
 }
 
 const int Default_iterations = 100;
@@ -76,6 +329,8 @@ struct AvxAlgorithm {};
 
 template <typename T> class Matrix {
 private:
+    static_assert(!std::is_reference_v<T>, "Matrix cannot be instantiated with reference type");
+
     enum class Tranformation_types { I_TYPE = 0, II_TYPE = 1, III_TYPE = 2 };
 
     std::unique_ptr<std::unique_ptr<T[]>[]> matrix_;
@@ -91,7 +346,10 @@ public:
 
     Matrix(int rows, int cols) : rows_(rows), cols_(cols), min_dim_(std::min(rows, cols)) {
         if (rows > 0 && cols > 0) {
-            alloc_matrix_();
+            matrix_ = std::make_unique<std::unique_ptr<T[]>[]>(rows_);
+            for (int i = 0; i < rows_; ++i) {
+                matrix_[i] = std::make_unique<T[]>(cols_);
+            }
         }
     }
 
@@ -101,20 +359,7 @@ public:
         }
     }
 
-    ~Matrix() {
-        if constexpr (detail::is_matrix_v<T>) {
-            if (matrix_) {
-                for (int i = 0; i < rows_; ++i) {
-                    if (matrix_[i]) {
-                        T* raw_ptr = matrix_[i].get();
-                        for (int j = 0; j < cols_; ++j) {
-                            raw_ptr[j].~T();  // Явный вызов деструктора
-                        }
-                    }
-                }
-            }
-        }
-    }
+    ~Matrix() = default;
 
     // Submatrix constructor
     Matrix(const Matrix& other, int start_row, int start_col, int num_rows, int num_cols)
@@ -132,22 +377,58 @@ public:
     static Matrix Rectangular(int rows, int cols) { return Matrix(rows, cols); }
 
     static Matrix Identity(int rows, int cols) {
+        if constexpr (detail::is_matrix_v<T>) {
+            throw std::runtime_error("For block matrices use BlockIdentity() with block dimensions");
+        }
+        
         Matrix result(rows, cols);
         int min_dim = std::min(rows, cols);
         for (int i = 0; i < min_dim; i++) {
-            if constexpr (detail::is_matrix_v<T>) {
-                using BlockType = typename T::value_type;
-                int block_rows = result(0, 0).get_rows();
-                int block_cols = result(0, 0).get_cols();
-                result(i, i) = Matrix<BlockType>::Identity(block_rows, block_cols);
-            } else {
-                result(i, i) = T{1};
-            }
+            result(i, i) = T{1};
         }
         return result;
     }
 
     static Matrix Identity(int rows) { return Identity(rows, rows); }
+
+    static Matrix BlockMatrix(int rows, int cols, int block_rows, int block_cols) {
+        static_assert(detail::is_matrix_v<T>, "BlockMatrix can only be used with Matrix<Matrix<U>> types");
+
+        using InnerType = typename T::value_type;
+        Matrix result(rows, cols);
+
+        for (int i = 0; i < rows; ++i) {
+            for (int j = 0; j < cols; ++j) {
+                result(i, j) = T::Zero(block_rows, block_cols);
+            }
+        }
+        return result;
+    }
+
+    static Matrix BlockIdentity(int rows, int cols, int block_rows, int block_cols) {
+        static_assert(detail::is_matrix_v<T>, "BlockIdentity can only be used with Matrix<Matrix<U>> types");
+
+        using InnerType = typename T::value_type;
+        Matrix result(rows, cols);
+
+        int min_dim = std::min(rows, cols);
+        for (int i = 0; i < min_dim; ++i) {
+            result(i, i) = T::Identity(block_rows, block_cols);
+        }
+
+        for (int i = 0; i < rows; ++i) {
+            for (int j = 0; j < cols; ++j) {
+                if (result(i, j).get_rows() == 0) {
+                    result(i, j) = T::Zero(block_rows, block_cols);
+                }
+            }
+        }
+        return result;
+    }
+
+    static Matrix BlockZero(int rows, int cols, int block_rows, int block_cols) {
+        return BlockMatrix(rows, cols, block_rows, block_cols);
+    }
 
     static Matrix Diagonal(int rows, int cols, const std::vector<T> &diagonal) {
         Matrix result = Matrix::Zero(static_cast<int>(rows), static_cast<int>(cols));
@@ -205,6 +486,10 @@ public:
     }
 
     static Matrix Zero(int rows, int cols) {
+        if constexpr (detail::is_matrix_v<T>) {
+            throw std::runtime_error("For block matrices use BlockZero() with block dimensions");
+        }
+        
         Matrix result(rows, cols);
         result.init_zero_();
         return result;
@@ -236,18 +521,35 @@ public:
     {
         
         if constexpr (detail::is_matrix_v<T>) {
-            // Generate matrix of matrices
-            Matrix result(rows, cols);
-            for (int i = 0; i < rows; ++i) {
-                for (int j = 0; j < cols; ++j) {
-                    result(i, j) = T::Generate_matrix(
-                        min_val.get_rows(), min_val.get_cols(),
-                        typename T::value_type{-10}, typename T::value_type{10}
-                    );
-                }
+        // Generate matrix of matrices - все внутренние матрицы одного размера
+        Matrix result(rows, cols);
+        
+        // Получаем размеры внутренних матриц из min_val
+        int inner_rows = min_val.get_rows();
+        int inner_cols = min_val.get_cols();
+        
+        using InnerType = typename T::value_type;
+        
+        // Генерируем границы для внутренних элементов
+        InnerType inner_min, inner_max;
+        
+        // Просто приводим типы
+        inner_min = static_cast<InnerType>(-10);
+        inner_max = static_cast<InnerType>(10);
+        
+        for (int i = 0; i < rows; ++i) {
+            for (int j = 0; j < cols; ++j) {
+                result(i, j) = T::Generate_matrix(
+                    inner_rows, inner_cols,
+                    inner_min, inner_max,
+                    iterations,
+                    static_cast<InnerType>(1),
+                    static_cast<InnerType>(1e10)
+                );
             }
-            return result;
-        } else {
+        }
+        return result;
+    } else {
             if constexpr (std::is_floating_point_v<T>) {
                 if (min_val == T{} && max_val == T{}) {
                     min_val = T{-10};
@@ -365,22 +667,9 @@ public:
         }
     }
 
-    // Оператор присваивания
     Matrix& operator=(const Matrix& other) {
         if (this != &other) {
-            // Освобождаем старую память
-            if constexpr (detail::is_matrix_v<T>) {
-                if (matrix_) {
-                    for (int i = 0; i < rows_; ++i) {
-                        if (matrix_[i]) {
-                            T* raw_ptr = matrix_[i].get();
-                            for (int j = 0; j < cols_; ++j) {
-                                raw_ptr[j].~T();
-                            }
-                        }
-                    }
-                }
-            }
+            matrix_.reset();
             
             rows_ = other.rows_;
             cols_ = other.cols_;
@@ -393,14 +682,10 @@ public:
                         (*this)(i, j) = other(i, j);
                     }
                 }
-            } else {
-                matrix_.reset();
             }
         }
         return *this;
     }
-
-
 
     Matrix(Matrix &&) = default;
     Matrix &operator=(Matrix &&) = default;
@@ -408,103 +693,34 @@ public:
     T &operator()(int i, int j) { return matrix_[i][j]; }
     const T &operator()(int i, int j) const { return matrix_[i][j]; }
 
-    friend Matrix operator+(const Matrix& lhs, const Matrix& rhs) {
-        return lhs.binary_operation(rhs, std::plus<T>{});
-    }
+template<typename U>
+Matrix& operator+=(const Matrix<U>& other) {
+    *this = *this + other;
+    return *this;
+}
 
-    friend Matrix operator-(const Matrix& lhs, const Matrix& rhs) {
-        return lhs.binary_operation(rhs, std::minus<T>{});
-    }
+template<typename U>
+Matrix& operator-=(const Matrix<U>& other) {
+    *this = *this - other;
+    return *this;
+}
 
-    Matrix& operator+=(const Matrix& other) {
-        *this = binary_operation(other, std::plus<T>{});
-        return *this;
-    }
+Matrix& operator*=(const Matrix& other) {
+    *this = *this * other;
+    return *this;
+}
 
-    Matrix& operator-=(const Matrix& other) {
-        *this = binary_operation(other, std::minus<T>{});
-        return *this;
-    }
-    
-    friend Matrix operator+(const Matrix& lhs, const T& scalar) {
-        Matrix result = lhs;
-        result += scalar;
-        return result;
-    }
+template<typename U>
+Matrix& operator*=(const U& scalar) {
+    *this = *this * scalar;  // Вызовет исправленный оператор умножения на скаляр
+    return *this;
+}
 
-    friend Matrix operator+(const T& scalar, const Matrix& rhs) {
-        Matrix result = rhs;
-        result += scalar;
-        return result;
-    }
-
-    Matrix& operator+=(const T scalar) {
-        int min_dim = std::min(rows_, cols_);
-        for (int i = 0; i < min_dim; ++i) {
-            (*this)(i, i) += scalar;
-        }
-        return *this;
-    }
-    
-    Matrix& operator-=(const T scalar) {
-        int min_dim = std::min(rows_, cols_);
-        for (int i = 0; i < min_dim; ++i) {
-            (*this)(i, i) -= scalar;
-        }
-        return *this;
-    }
-    
-    friend Matrix operator-(const Matrix& lhs, const T& scalar) {
-        Matrix result = lhs;
-        result -= scalar;
-        return result;
-    }
-
-    friend Matrix operator*(const Matrix& A, const Matrix& B) {
-        #ifdef __AVX__
-            if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
-                 return multiply_impl<AvxAlgorithm>(A, B);
-            } else {
-                 return multiply_impl<BasicAlgorithm>(A, B);
-            }
-        #else
-            return multiply_impl<BasicAlgorithm>(A, B);
-        #endif
-    }
-
-    friend Matrix multiply_basic(const Matrix& A, const Matrix& B) {
-        return multiply_impl<BasicAlgorithm>(A, B);
-    }
-
-    #ifdef __AVX__
-    friend Matrix multiply_avx(const Matrix& A, const Matrix& B) {
-        return multiply_impl<AvxAlgorithm>(A, B);
-    }
-    #endif
-
-    friend Matrix operator*(const Matrix& lhs, const T& scalar) {
-        Matrix result = lhs;
-        result *= scalar;
-        return result;
-    }
-
-    friend Matrix operator*(const T& scalar, const Matrix& rhs) {
-        return rhs * scalar;
-    }
-
-    Matrix& operator*=(const T& scalar) {
-        for (int i = 0; i < rows_; ++i) {
-            for (int j = 0; j < cols_; ++j) {
-                (*this)(i, j) *= scalar;
-            }
-        }
-        return *this;
-    }
-
-    Matrix& operator*=(const Matrix& other) {
-        *this = *this * other;
-        return *this;
-    }
+template<typename U>
+Matrix& operator/=(const U& scalar) {
+    *this = *this / scalar;  // Вызовет исправленный оператор деления на скаляр
+    return *this;
+} 
 
     bool operator==(const Matrix& other) const {
         if (rows_ != other.rows_ || cols_ != other.cols_) return false;
@@ -627,44 +843,87 @@ public:
         }
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const Matrix<T>& matrix) {
-        if constexpr (detail::is_matrix_v<T>) {
-            if (matrix.rows_ <= 3 && matrix.cols_ <= 3) {
-                for (int i = 0; i < matrix.rows_; ++i) {
-                    os << "[";
-                    for (int j = 0; j < matrix.cols_; ++j) {
-                        if (j > 0) os << ", ";
-                        if (matrix(i, j).get_rows() <= 3 && matrix(i, j).get_cols() <= 3) {
-                            os << matrix(i, j);
-                        } else {
-                            os << "[Matrix " << matrix(i, j).get_rows()
-                               << "x" << matrix(i, j).get_cols() << "]";
-                        }
+void detailed_print() const {
+    if constexpr (detail::is_matrix_v<T>) {
+        std::cout << "Block Matrix " << rows_ << "x" << cols_ 
+                  << " of " << (*this)(0, 0).get_rows() 
+                  << "x" << (*this)(0, 0).get_cols() << " blocks:\n";
+        
+        std::cout << std::fixed << std::setprecision(2);
+        
+        for (int i = 0; i < rows_; ++i) {
+            for (int inner_row = 0; inner_row < (*this)(0, 0).get_rows(); ++inner_row) {
+                std::cout << "  ";
+                for (int j = 0; j < cols_; ++j) {
+                    const auto& block = (*this)(i, j);
+                    
+                    // Печатаем inner_row-ю строку блока
+                    std::cout << "[";
+                    for (int inner_col = 0; inner_col < block.get_cols(); ++inner_col) {
+                        std::cout << std::setw(6) << block(inner_row, inner_col);
+                        if (inner_col < block.get_cols() - 1) std::cout << " ";
                     }
-                    os << "]";
-                    if (i < matrix.rows_ - 1) os << "\n";
+                    std::cout << "]";
+                    
+                    if (j < cols_ - 1) std::cout << "  ";
                 }
-            } else {
-                os << "[BlockMatrix " << matrix.rows_ << "x" << matrix.cols_
-                   << " of " << matrix(0, 0).get_rows()
-                   << "x" << matrix(0, 0).get_cols() << "]";
+                std::cout << "\n";
+            }
+            if (i < rows_ - 1) {
+                std::cout << "\n";
             }
         }
-        else {
-            if (matrix.rows_ <= 5 && matrix.cols_ <= 5) {
-                for (int i = 0; i < matrix.rows_; ++i) {
+        std::cout << std::defaultfloat;
+    } else {
+        // Для обычных матриц
+        print(10);
+    }
+}
+
+// Также обновим operator<< для лучшего вывода:
+friend std::ostream& operator<<(std::ostream& os, const Matrix<T>& matrix) {
+    if constexpr (detail::is_matrix_v<T>) {
+        // Для маленьких матриц матриц показываем полностью
+        if (matrix.rows_ <= 3 && matrix.cols_ <= 3) {
+            os << "BlockMatrix " << matrix.rows_ << "x" << matrix.cols_ << ":\n";
+            for (int i = 0; i < matrix.rows_; ++i) {
+                for (int inner_i = 0; inner_i < matrix(0, 0).get_rows(); ++inner_i) {
+                    os << "  ";
                     for (int j = 0; j < matrix.cols_; ++j) {
-                        os << matrix(i, j);
+                        const auto& block = matrix(i, j);
+                        os << "[";
+                        for (int inner_j = 0; inner_j < block.get_cols(); ++inner_j) {
+                            os << block(inner_i, inner_j);
+                            if (inner_j < block.get_cols() - 1) os << " ";
+                        }
+                        os << "]";
                         if (j < matrix.cols_ - 1) os << " ";
                     }
-                    if (i < matrix.rows_ - 1) os << "\n";
+                    os << "\n";
                 }
-            } else {
-                os << "[Matrix " << matrix.rows_ << "x" << matrix.cols_ << "]";
+                if (i < matrix.rows_ - 1) os << "\n";
             }
+        } else {
+            os << "[BlockMatrix " << matrix.rows_ << "x" << matrix.cols_
+               << " of " << matrix(0, 0).get_rows()
+               << "x" << matrix(0, 0).get_cols() << "]";
         }
-        return os;
+    } else {
+        // Оригинальная логика для обычных матриц
+        if (matrix.rows_ <= 5 && matrix.cols_ <= 5) {
+            for (int i = 0; i < matrix.rows_; ++i) {
+                for (int j = 0; j < matrix.cols_; ++j) {
+                    os << matrix(i, j);
+                    if (j < matrix.cols_ - 1) os << " ";
+                }
+                if (i < matrix.rows_ - 1) os << "\n";
+            }
+        } else {
+            os << "[Matrix " << matrix.rows_ << "x" << matrix.cols_ << "]";
+        }
     }
+    return os;
+}
 
     void fill_upper_triangle(
         T min_val = {},
@@ -732,8 +991,14 @@ using inverse_return_type = typename std::conditional<
     U
 >::type;
 
-  friend auto operator/(const Matrix& A, const Matrix& B) {
+ friend auto operator/(const Matrix& A, const Matrix& B) {
     DEBUG_PRINTF("operator/: A=%dx%d, B=%dx%d\n", A.rows_, A.cols_, B.rows_, B.cols_);
+    
+    // Детальный вывод для матриц матриц
+    if constexpr (detail::is_matrix_v<T>) {
+        DEBUG_PRINTF("A(0,0) size: %dx%d\n", A(0,0).get_rows(), A(0,0).get_cols());
+        DEBUG_PRINTF("B(0,0) size: %dx%d\n", B(0,0).get_rows(), B(0,0).get_cols());
+    }
     
     if (A.cols_ != B.rows_) {
         DEBUG_PRINTF("ERROR: A.cols=%d != B.rows=%d\n", A.cols_, B.rows_);
@@ -747,11 +1012,16 @@ using inverse_return_type = typename std::conditional<
         Matrix<ResultType> A_cast = A;
         Matrix<ResultType> B_cast = B;
         
-        DEBUG_PRINTF("Computing inverse...\n");
+        DEBUG_PRINTF("Computing inverse of B...\n");
         Matrix<ResultType> B_inv = B_cast.inverse();
         DEBUG_PRINTF("B_inv computed: %dx%d\n", B_inv.get_rows(), B_inv.get_cols());
         
-        DEBUG_PRINTF("Multiplying...\n");
+        // Детальный вывод для матриц матриц
+        if constexpr (detail::is_matrix_v<ResultType>) {
+            DEBUG_PRINTF("B_inv(0,0) size: %dx%d\n", B_inv(0,0).get_rows(), B_inv(0,0).get_cols());
+        }
+        
+        DEBUG_PRINTF("Multiplying A * B_inv...\n");
         auto result = A_cast * B_inv;
         DEBUG_PRINTF("Division completed\n");
         return result;
@@ -763,26 +1033,46 @@ using inverse_return_type = typename std::conditional<
 
 template<typename U>
 Matrix<U> cast_to() const {
-    DEBUG_PRINTF("Casting Matrix %dx%d to different type\n", rows_, cols_);
-    Matrix<U> result(rows_, cols_);
-    for (int i = 0; i < rows_; ++i) {
-        for (int j = 0; j < cols_; ++j) {
-            result(i, j) = static_cast<U>((*this)(i, j));
-        }
-    }
-    return result;
-}
-
-    template<typename U>
-    operator Matrix<U>() const {
-        Matrix<U> result(rows_, cols_);
+    using NonRefU = std::remove_reference_t<U>;
+    static_assert(!std::is_reference_v<NonRefU>, "Cannot cast to reference type");
+    
+    if constexpr (detail::is_matrix_v<T> && detail::is_matrix_v<NonRefU>) {
+        // Matrix<Matrix<T>> -> Matrix<Matrix<U>>
+        Matrix<NonRefU> result(rows_, cols_);
         for (int i = 0; i < rows_; ++i) {
             for (int j = 0; j < cols_; ++j) {
-                result(i, j) = static_cast<U>((*this)(i, j));
+                result(i, j) = (*this)(i, j).template cast_to<typename NonRefU::value_type>();
+            }
+        }
+        return result;
+    } else if constexpr (detail::is_matrix_v<T> && !detail::is_matrix_v<NonRefU>) {
+        // Matrix<Matrix<T>> -> Matrix<U> невозможно напрямую
+        throw std::runtime_error("Cannot cast block matrix to scalar matrix type");
+    } else {
+        // Простой каст T -> U
+        Matrix<NonRefU> result(rows_, cols_);
+        for (int i = 0; i < rows_; ++i) {
+            for (int j = 0; j < cols_; ++j) {
+                result(i, j) = static_cast<NonRefU>((*this)(i, j));
             }
         }
         return result;
     }
+}
+
+template<typename U>
+operator Matrix<U>() const {
+    using NonRefU = std::remove_reference_t<U>;
+    static_assert(!std::is_reference_v<NonRefU>, "Cannot cast to reference type");
+    
+    Matrix<NonRefU> result(rows_, cols_);
+    for (int i = 0; i < rows_; ++i) {
+        for (int j = 0; j < cols_; ++j) {
+            result(i, j) = static_cast<NonRefU>((*this)(i, j));
+        }
+    }
+    return result;
+}
 
    template<typename ComputeType>
 Matrix<ComputeType> inverse_impl_with_abs() const {
@@ -902,75 +1192,83 @@ Matrix<ComputeType> inverse() const {
 }
 
 template <typename U = T>
-    std::optional<int> find_pivot_in_subcol(int row, int col) const {
-        if (row < 0 || row >= rows_ || col < 0 || col >= cols_) {
-            DEBUG_PRINTF("ERROR: index out of range\n");
-            return std::nullopt;
-        }
-
-        if (rows_ == 0)
-            return std::nullopt;
-
-        int max_val_index = row;
-        
-        if constexpr (detail::has_abs_v<U> && !detail::is_matrix_v<U>) {
-            using std::abs;
-            auto max_abs = abs((*this)(row, col));
-            for (int i = row + 1; i < rows_; ++i) {
-                auto current_abs = abs((*this)(i, col));
-                if (current_abs > max_abs) {
-                    max_val_index = i;
-                    max_abs = current_abs;
-                }
-            }
-            return max_val_index;
-        } else if constexpr (detail::is_matrix_v<U>) {
-            DEBUG_PRINTF("MATRIX_TYPE!");
-            double max_norm = compute_block_norm((*this)(row, col));
-            for (int i = row + 1; i < rows_; ++i) {
-                double current_norm = compute_block_norm((*this)(i, col));
-                if (current_norm > max_norm) {
-                    max_val_index = i;
-                    max_norm = current_norm;
-                }
-            }
-            return max_val_index;
-        } else {
-            for (int i = row; i < rows_; ++i) {
-                if (!is_zero((*this)(i, col))) {
-                    return i;
-                }
-            }
-            return std::nullopt;
-        }
+std::optional<int> find_pivot_in_subcol(int row, int col) const {
+    DEBUG_PRINTF("find_pivot_in_subcol: row=%d, col=%d\n", row, col);
+    
+    if (row < 0 || row >= rows_ || col < 0 || col >= cols_) {
+        DEBUG_PRINTF("ERROR: index out of range\n");
+        return std::nullopt;
     }
+
+    if (rows_ == 0)
+        return std::nullopt;
+
+    int max_val_index = row;
+    
+    if constexpr (detail::has_abs_v<U> && !detail::is_matrix_v<U>) {
+        using std::abs;
+        auto max_abs = abs((*this)(row, col));
+        
+        DEBUG_PRINTF("Initial abs at row %d: %f\n", row, static_cast<double>(max_abs));
+        
+        for (int i = row + 1; i < rows_; ++i) {
+            auto current_abs = abs((*this)(i, col));
+            DEBUG_PRINTF("Row %d abs: %f\n", i, static_cast<double>(current_abs));
+            if (current_abs > max_abs) {
+                max_val_index = i;
+                max_abs = current_abs;
+                DEBUG_PRINTF("New max at row %d\n", i);
+            }
+        }
+        return max_val_index;
+    } else if constexpr (detail::is_matrix_v<U>) {
+        DEBUG_PRINTF("MATRIX_TYPE: Computing block norms\n");
+        double max_norm = compute_block_norm((*this)(row, col));
+        DEBUG_PRINTF("Initial norm at row %d: %f\n", row, max_norm);
+        
+        for (int i = row + 1; i < rows_; ++i) {
+            double current_norm = compute_block_norm((*this)(i, col));
+            DEBUG_PRINTF("Row %d norm: %f\n", i, current_norm);
+            if (current_norm > max_norm) {
+                max_val_index = i;
+                max_norm = current_norm;
+                DEBUG_PRINTF("New max at row %d\n", i);
+            }
+        }
+        return max_val_index;
+    } else {
+        DEBUG_PRINTF("Generic pivot search\n");
+        for (int i = row; i < rows_; ++i) {
+            if (!is_zero((*this)(i, col))) {
+                DEBUG_PRINTF("Found non-zero at row %d\n", i);
+                return i;
+            }
+        }
+        DEBUG_PRINTF("All zeros found\n");
+        return std::nullopt;
+    }
+}
 
 private:
     bool alloc_matrix_() {
-        if (rows_ <= 0 || cols_ <= 0) {
-            return false;
-        }
-
-        if constexpr (detail::is_matrix_v<T>) {
-            matrix_ = std::unique_ptr<std::unique_ptr<T[]>[]>(new std::unique_ptr<T[]>[rows_]);
-            
-            for (int i = 0; i < rows_; ++i) {
-                T* raw_row = new T[cols_];
-                matrix_[i].reset(raw_row);
-                
-                for (int j = 0; j < cols_; ++j) {
-                    new (&raw_row[j]) T();
-                }
-            }
-        } else {
-            matrix_ = std::make_unique<std::unique_ptr<T[]>[]>(rows_);
-            for (int i = 0; i < rows_; ++i) {
-                matrix_[i] = std::make_unique<T[]>(cols_);
-            }
-        }
-        
-        return true;
+    if (rows_ <= 0 || cols_ <= 0) {
+        return false;
     }
+
+    if constexpr (detail::is_matrix_v<T>) {
+        matrix_ = std::make_unique<std::unique_ptr<T[]>[]>(rows_);
+        for (int i = 0; i < rows_; ++i) {
+            matrix_[i] = std::make_unique<T[]>(cols_);
+        }
+    } else {
+        matrix_ = std::make_unique<std::unique_ptr<T[]>[]>(rows_);
+        for (int i = 0; i < rows_; ++i) {
+            matrix_[i] = std::make_unique<T[]>(cols_);
+        }
+    }
+    
+    return true;
+}
 
     void init_zero_() {
         for (int i = 0; i < rows_; i++)
@@ -1333,39 +1631,69 @@ private:
 
 template <typename U = T>
 std::optional<T> det_numeric_impl(int row, int col, int size) const {
+    DEBUG_PRINTF("det_numeric_impl called for matrix %dx%d, size=%d\n", 
+                 rows_, cols_, size);
+    
+    if constexpr (detail::is_matrix_v<T>) {
+        DEBUG_PRINTF("This is a block matrix\n");
+        DEBUG_PRINTF("Block size: %dx%d\n", (*this)(0,0).get_rows(), (*this)(0,0).get_cols());
+    }    
+
     if (row < 0 || row >= rows_ || col < 0 || col >= cols_ || 
         row + size > rows_ || col + size > cols_ || size <= 0) {
+        DEBUG_PRINTF("Invalid parameters!\n");
         return std::nullopt;
     }
 
     if (size == 1) {
+        DEBUG_PRINTF("Size=1, determinant = element at (%d,%d)\n", row, col);
         determinant_.emplace((*this)(row, col));
         return determinant_;
     }
 
     // Копируем подматрицу
     Matrix<T> matrix_cpy = Matrix<T>(*this, row, col, size, size);
+    
+    DEBUG_PRINTF("Copied matrix %dx%d for determinant calculation\n", 
+                 matrix_cpy.get_rows(), matrix_cpy.get_cols());
 
     T determinant = identity_element<T>();
     int sign = 1;
 
     for (int j = 0; j < size; ++j) {
+        DEBUG_PRINTF("Step %d: Looking for pivot in column %d\n", j, j);
+        
         // Ищем опорный элемент
         std::optional<int> max_index_opt = matrix_cpy.template find_pivot_in_subcol<T>(j, j);
         if (!max_index_opt) {
+            DEBUG_PRINTF("No pivot found, determinant is zero\n");
             determinant_.emplace(zero_element<T>());
             return zero_element<T>();
         }
 
         int max_index = *max_index_opt;
+        DEBUG_PRINTF("Pivot found at row %d (current row %d)\n", max_index, j);
+        
         if (max_index != j) {
+            DEBUG_PRINTF("Swapping rows %d and %d\n", max_index, j);
             matrix_cpy.swap_rows(max_index, j);
             sign = -sign;
         }
 
         T pivot = matrix_cpy(j, j);
+        DEBUG_PRINTF("Pivot element: ");
+        
+        // Вывод в зависимости от типа
+        if constexpr (detail::is_matrix_v<T>) {
+            DEBUG_PRINTF("Matrix %dx%d\n", pivot.get_rows(), pivot.get_cols());
+        } else if constexpr (std::is_same_v<T, std::complex<double>>) {
+            DEBUG_PRINTF("(%f, %fi)\n", pivot.real(), pivot.imag());
+        } else {
+            DEBUG_PRINTF("%f\n", static_cast<double>(pivot));
+        }
         
         if (is_zero(pivot)) {
+            DEBUG_PRINTF("Pivot is zero, determinant is zero\n");
             determinant_.emplace(zero_element<T>());
             return zero_element<T>();
         }
@@ -1374,8 +1702,17 @@ std::optional<T> det_numeric_impl(int row, int col, int size) const {
 
         // Исключение Гаусса
         for (int i = j + 1; i < size; ++i) {
-            T scalar = matrix_cpy(i, j) / pivot;
+            DEBUG_PRINTF("Eliminating row %d using row %d\n", i, j);
+            DEBUG_PRINTF("Before division: matrix_cpy(%d,%d) / pivot\n", i, j);
+            if constexpr (detail::is_matrix_v<T>) {
+                DEBUG_PRINTF("matrix_cpy(%d,%d) is matrix %dx%d\n", 
+                             i, j, matrix_cpy(i,j).get_rows(), matrix_cpy(i,j).get_cols());
+                DEBUG_PRINTF("pivot is matrix %dx%d\n", 
+                             pivot.get_rows(), pivot.get_cols());
+            }
             
+            T scalar = matrix_cpy(i, j) / pivot;            
+
             for (int k = j + 1; k < size; ++k) {
                 matrix_cpy(i, k) = matrix_cpy(i, k) - scalar * matrix_cpy(j, k);
             }
@@ -1386,6 +1723,7 @@ std::optional<T> det_numeric_impl(int row, int col, int size) const {
         determinant = -determinant;
     }
     
+    DEBUG_PRINTF("Determinant calculation complete\n");
     determinant_ = determinant;
     return determinant_;
 }
@@ -1455,123 +1793,67 @@ std::optional<T> det_numeric_impl(int row, int col, int size) const {
         return result;
     }
 
-    static void matrix_multiply_basic_impl(const Matrix& A, const Matrix& B, Matrix& C) {
-        const int rows_A = A.rows_;
-        const int cols_A = A.cols_;
-        const int cols_B = B.cols_;
-
-        for (int i = 0; i < rows_A; ++i) {
-            for (int k = 0; k < cols_A; ++k) {
-                T temp_a_ik = A(i, k);
-                for (int j = 0; j < cols_B; ++j) {
-                    C(i, j) += temp_a_ik * B(k, j);
-                }
-            }
+   template<typename Algo>
+    static Matrix multiply_impl(const Matrix& A, const Matrix& B) {
+        if (A.cols_ != B.rows_) {
+            throw std::invalid_argument("Matrix dimensions don't match for multiplication");
         }
-    }
-
-    #ifdef __AVX__
-    static void matrix_multiply_avx_impl(const Matrix& A, const Matrix& B, Matrix& C) {
-        if constexpr (!std::is_same_v<T, double>) {
-             // Только для double
-             matrix_multiply_basic_impl(A, B, C);
-             return;
-        }
-
-        const int rows_A = A.rows_;
-        const int cols_A = A.cols_;
-        const int cols_B = B.cols_;
-
-        const int cols_B_simd = (cols_B / 4) * 4;
-
-        for (int i = 0; i < rows_A; ++i) {
-            for (int k = 0; k < cols_A; ++k) {
-                __m256d temp_a_ik_vec = _mm256_broadcast_sd(&A(i, k));
-
-                int j = 0;
-                for (; j < cols_B_simd; j += 4) {
-                    __m256d c_vec = _mm256_loadu_pd(&C(i, j));
-                    __m256d b_vec = _mm256_loadu_pd(&B(k, j));
-                    __m256d mul_res = _mm256_mul_pd(temp_a_ik_vec, b_vec);
-                    c_vec = _mm256_add_pd(c_vec, mul_res);
-                    _mm256_storeu_pd(&C(i, j), c_vec);
+        
+        Matrix result(A.rows_, B.cols_);
+        
+        if constexpr (std::is_same_v<Algo, AvxAlgorithm>) {
+            #ifdef __AVX__
+                if constexpr (std::is_same_v<T, double>) {
+                    for (int i = 0; i < A.rows_; ++i) {
+                        for (int k = 0; k < A.cols_; ++k) {
+                            __m256d a_vec = _mm256_set1_pd(A(i, k));
+                            int j = 0;
+                            for (; j <= B.cols_ - 4; j += 4) {
+                                __m256d b_vec = _mm256_loadu_pd(&B(k, j));
+                                __m256d c_vec = _mm256_loadu_pd(&result(i, j));
+                                c_vec = _mm256_add_pd(c_vec, _mm256_mul_pd(a_vec, b_vec));
+                                _mm256_storeu_pd(&result(i, j), c_vec);
+                            }
+                            for (; j < B.cols_; ++j) {
+                                result(i, j) += A(i, k) * B(k, j);
+                            }
+                        }
+                    }
+                } else if constexpr (std::is_same_v<T, float>) {
+                    for (int i = 0; i < A.rows_; ++i) {
+                        for (int k = 0; k < A.cols_; ++k) {
+                            __m256 a_vec = _mm256_set1_ps(A(i, k));
+                            int j = 0;
+                            for (; j <= B.cols_ - 8; j += 8) {
+                                __m256 b_vec = _mm256_loadu_ps(&B(k, j));
+                                __m256 c_vec = _mm256_loadu_ps(&result(i, j));
+                                c_vec = _mm256_add_ps(c_vec, _mm256_mul_ps(a_vec, b_vec));
+                                _mm256_storeu_ps(&result(i, j), c_vec);
+                            }
+                            for (; j < B.cols_; ++j) {
+                                result(i, j) += A(i, k) * B(k, j);
+                            }
+                        }
+                    }
+                } else {
+                    return multiply_impl<BasicAlgorithm>(A, B);
                 }
-
-                for (; j < cols_B; ++j) {
-                    C(i, j) += A(i, k) * B(k, j);
-                }
-            }
-        }
-    }
-    #endif
-
-    #ifdef __AVX__
-    static void matrix_multiply_avx_impl_float(const Matrix& A, const Matrix& B, Matrix& C) {
-        if constexpr (!std::is_same_v<T, float>) {
-             matrix_multiply_basic_impl(A, B, C);
-             return;
-        }
-
-        const int rows_A = A.rows_;
-        const int cols_A = A.cols_;
-        const int cols_B = B.cols_;
-
-        const int cols_B_simd = (cols_B / 8) * 8;
-
-        for (int i = 0; i < rows_A; ++i) {
-            for (int k = 0; k < cols_A; ++k) {
-                __m256 temp_a_ik_vec = _mm256_broadcast_ss(&A(i, k));
-
-                int j = 0;
-                for (; j < cols_B_simd; j += 8) {
-                    __m256 c_vec = _mm256_loadu_ps(&C(i, j));
-                    __m256 b_vec = _mm256_loadu_ps(&B(k, j));
-                    __m256 mul_res = _mm256_mul_ps(temp_a_ik_vec, b_vec);
-                    c_vec = _mm256_add_ps(c_vec, mul_res);
-                    _mm256_storeu_ps(&C(i, j), c_vec);
-                }
-
-                for (; j < cols_B; ++j) {
-                    C(i, j) += A(i, k) * B(k, j);
-                }
-            }
-        }
-    }
-    #endif
-
-   template<typename AlgorithmTag>
-static Matrix multiply_impl(const Matrix& A, const Matrix& B) {
-    DEBUG_PRINTF("multiply_impl: A=%dx%d, B=%dx%d\n", A.rows_, A.cols_, B.rows_, B.cols_);
-    
-    if (A.cols_ != B.rows_) {
-        DEBUG_PRINTF("ERROR: A.cols=%d != B.rows=%d\n", A.cols_, B.rows_);
-        throw std::invalid_argument("Matrix dimensions don't match for multiplication (A.cols != B.rows)");
-    }
-
-    Matrix result(A.rows_, B.cols_);
-    DEBUG_PRINTF("Result matrix: %dx%d\n", result.rows_, result.cols_);
-
-    if constexpr (std::is_same_v<AlgorithmTag, BasicAlgorithm>) {
-        matrix_multiply_basic_impl(A, B, result);
-    }
-    #ifdef __AVX__
-    else if constexpr (std::is_same_v<AlgorithmTag, AvxAlgorithm>) {
-        if constexpr (std::is_same_v<T, double>) {
-             matrix_multiply_avx_impl(A, B, result);
-        } else if constexpr (std::is_same_v<T, float>) {
-             matrix_multiply_avx_impl_float(A, B, result);
+            #else
+                return multiply_impl<BasicAlgorithm>(A, B);
+            #endif
         } else {
-             matrix_multiply_basic_impl(A, B, result);
+            for (int i = 0; i < A.rows_; ++i) {
+                for (int k = 0; k < A.cols_; ++k) {
+                    T a_ik = A(i, k);
+                    for (int j = 0; j < B.cols_; ++j) {
+                        result(i, j) += a_ik * B(k, j);
+                    }
+                }
+            }
         }
-    }
-    #endif 
-    else {
-        matrix_multiply_basic_impl(A, B, result);
-    }
-
-    DEBUG_PRINTF("Multiplication completed\n");
-    return result;
-} 
+        
+        return result;
+    } 
 
 template<typename ComputeType>
 static bool is_element_zero_impl(const ComputeType& elem) {
@@ -1629,46 +1911,6 @@ void initialize_augmented_matrix(Matrix<ComputeType>& augmented) const {
             augmented(i, n + i) = ComputeType(1);
         }
     }
-}
-
-template<typename ComputeType>
-int find_pivot_row(const Matrix<ComputeType>& augmented, int col) const {
-    int n = augmented.get_rows();
-    int pivot_row = col;
-    
-    if constexpr (detail::is_matrix_v<ComputeType>) {
-        double pivot_norm = compute_block_norm(augmented(col, col));
-        
-        for (int i = col + 1; i < n; ++i) {
-            double current_norm = compute_block_norm(augmented(i, col));
-            if (current_norm > pivot_norm) {
-                pivot_norm = current_norm;
-                pivot_row = i;
-            }
-        }
-    } else if constexpr (detail::has_abs_v<ComputeType>) {
-        auto pivot_norm = std::abs(augmented(col, col));
-        
-        for (int i = col + 1; i < n; ++i) {
-            auto current_norm = std::abs(augmented(i, col));
-            if (current_norm > pivot_norm) {
-                pivot_norm = current_norm;
-                pivot_row = i;
-            }
-        }
-    } else {
-        auto pivot_norm = augmented(col, col) * augmented(col, col);
-        
-        for (int i = col + 1; i < n; ++i) {
-            auto current_norm = augmented(i, col) * augmented(i, col);
-            if (current_norm > pivot_norm) {
-                pivot_norm = current_norm;
-                pivot_row = i;
-            }
-        }
-    }
-    
-    return pivot_row;
 }
 
 template<typename ComputeType>
@@ -1732,8 +1974,13 @@ static void eliminate_rows(Matrix<ComputeType>& augmented, int pivot_row) {
 
     template<typename ComputeType>
 Matrix<ComputeType> inverse_impl_generic() const {
-    DEBUG_PRINTF("inverse_impl_generic: matrix %dx%d\n", rows_, cols_);
+   DEBUG_PRINTF("inverse_impl_generic: matrix %dx%d\n", rows_, cols_);
     
+    if constexpr (detail::is_matrix_v<T>) {
+        DEBUG_PRINTF("This is a block matrix, inner type: %s\n", typeid(typename T::value_type).name());
+        DEBUG_PRINTF("Block size: %dx%d\n", (*this)(0,0).get_rows(), (*this)(0,0).get_cols());
+    } 
+
     if (rows_ != cols_) throw std::invalid_argument("Matrix must be square");
     
     int n = rows_;
@@ -1857,3 +2104,447 @@ Matrix<ComputeType> inverse_impl_generic() const {
 }
 
 };
+
+template<typename T, typename U>
+auto operator*(const Matrix<T>& A, const Matrix<U>& B) {
+    if (A.get_cols() != B.get_rows()) {
+        throw std::invalid_argument("Matrix dimensions don't match for multiplication");
+    }
+    
+    using CommonT = std::remove_reference_t<detail::matrix_common_type_t<T, U>>;
+    using ResultType = std::remove_reference_t<detail::result_type_mul_t<CommonT, CommonT>>;
+    
+    Matrix<ResultType> result(A.get_rows(), B.get_cols());
+    
+    if constexpr (detail::is_matrix_v<ResultType>) {
+        if (A.get_rows() > 0 && A.get_cols() > 0 && B.get_cols() > 0) {
+            int inner_rows = A(0, 0).get_rows();
+            int inner_cols = B(0, 0).get_cols();
+            
+            for (int i = 0; i < result.get_rows(); ++i) {
+                for (int j = 0; j < result.get_cols(); ++j) {
+                    result(i, j) = ResultType::Zero(inner_rows, inner_cols);
+                }
+            }
+        }
+    }
+    
+    #ifdef __AVX__
+        if constexpr (std::is_same_v<T, U> && detail::is_avx_double<T>) {
+            for (int i = 0; i < A.get_rows(); ++i) {
+                for (int k = 0; k < A.get_cols(); ++k) {
+                    double a_ik = A(i, k);
+                    __m256d a_vec = _mm256_set1_pd(a_ik);
+                    int j = 0;
+                    for (; j + 4 <= B.get_cols(); j += 4) {
+                        double b_temp[4] = {B(k, j), B(k, j + 1), B(k, j + 2), B(k, j + 3)};
+                        double c_temp[4] = {result(i, j), result(i, j + 1), result(i, j + 2), result(i, j + 3)};
+                        
+                        __m256d b_vec = _mm256_loadu_pd(b_temp);
+                        __m256d c_vec = _mm256_loadu_pd(c_temp);
+                        c_vec = _mm256_add_pd(c_vec, _mm256_mul_pd(a_vec, b_vec));
+                        _mm256_storeu_pd(c_temp, c_vec);
+                        
+                        result(i, j) = c_temp[0];
+                        result(i, j + 1) = c_temp[1];
+                        result(i, j + 2) = c_temp[2];
+                        result(i, j + 3) = c_temp[3];
+                    }
+                    for (; j < B.get_cols(); ++j) {
+                        result(i, j) += A(i, k) * B(k, j);
+                    }
+                }
+            }
+        } else if constexpr (std::is_same_v<T, U> && detail::is_avx_float<T>) {
+            for (int i = 0; i < A.get_rows(); ++i) {
+                for (int k = 0; k < A.get_cols(); ++k) {
+                    float a_ik = A(i, k);
+                    __m256 a_vec = _mm256_set1_ps(a_ik);
+                    int j = 0;
+                    for (; j + 8 <= B.get_cols(); j += 8) {
+                        float b_temp[8] = {B(k, j), B(k, j + 1), B(k, j + 2), B(k, j + 3), 
+                                          B(k, j + 4), B(k, j + 5), B(k, j + 6), B(k, j + 7)};
+                        float c_temp[8] = {result(i, j), result(i, j + 1), result(i, j + 2), result(i, j + 3),
+                                          result(i, j + 4), result(i, j + 5), result(i, j + 6), result(i, j + 7)};
+                        
+                        __m256 b_vec = _mm256_loadu_ps(b_temp);
+                        __m256 c_vec = _mm256_loadu_ps(c_temp);
+                        c_vec = _mm256_add_ps(c_vec, _mm256_mul_ps(a_vec, b_vec));
+                        _mm256_storeu_ps(c_temp, c_vec);
+                        
+                        for (int n = 0; n < 8; ++n) {
+                            result(i, j + n) = c_temp[n];
+                        }
+                    }
+                    for (; j < B.get_cols(); ++j) {
+                        result(i, j) += A(i, k) * B(k, j);
+                    }
+                }
+            }
+        } else {
+            for (int i = 0; i < A.get_rows(); ++i) {
+                for (int k = 0; k < A.get_cols(); ++k) {
+                    CommonT a_ik = static_cast<CommonT>(A(i, k));
+                    for (int j = 0; j < B.get_cols(); ++j) {
+                        result(i, j) += a_ik * static_cast<CommonT>(B(k, j));
+                    }
+                }
+            }
+        }
+    #else
+        for (int i = 0; i < A.get_rows(); ++i) {
+            for (int k = 0; k < A.get_cols(); ++k) {
+                CommonT a_ik = static_cast<CommonT>(A(i, k));
+                for (int j = 0; j < B.get_cols(); ++j) {
+                    result(i, j) += a_ik * static_cast<CommonT>(B(k, j));
+                }
+            }
+        }
+    #endif
+    
+    return result;
+}
+
+template<typename T, typename U>
+auto operator+(const Matrix<T>& lhs, const Matrix<U>& rhs) {
+    if (lhs.get_rows() != rhs.get_rows() || lhs.get_cols() != rhs.get_cols()) {
+        throw std::invalid_argument("Matrix dimensions must match for addition");
+    }
+    
+    using CommonT = std::remove_reference_t<detail::matrix_common_type_t<T, U>>;
+    using ResultType = std::remove_reference_t<detail::result_type_add_t<CommonT, CommonT>>;
+    
+    Matrix<ResultType> result(lhs.get_rows(), lhs.get_cols());
+    
+    if constexpr (detail::is_matrix_v<ResultType>) {
+        if (lhs.get_rows() > 0 && lhs.get_cols() > 0) {
+            int inner_rows = lhs(0, 0).get_rows();
+            int inner_cols = lhs(0, 0).get_cols();
+            
+            for (int i = 0; i < result.get_rows(); ++i) {
+                for (int j = 0; j < result.get_cols(); ++j) {
+                    result(i, j) = ResultType::Zero(inner_rows, inner_cols);
+                }
+            }
+        }
+    }
+    
+    #ifdef __AVX__
+        if constexpr (std::is_same_v<T, U> && detail::is_avx_double<T>) {
+            for (int i = 0; i < lhs.get_rows(); ++i) {
+                int j = 0;
+                for (; j + 4 <= lhs.get_cols(); j += 4) {
+                    double lhs_temp[4] = {lhs(i, j), lhs(i, j + 1), lhs(i, j + 2), lhs(i, j + 3)};
+                    double rhs_temp[4] = {rhs(i, j), rhs(i, j + 1), rhs(i, j + 2), rhs(i, j + 3)};
+                    
+                    __m256d lhs_vec = _mm256_loadu_pd(lhs_temp);
+                    __m256d rhs_vec = _mm256_loadu_pd(rhs_temp);
+                    __m256d res_vec = _mm256_add_pd(lhs_vec, rhs_vec);
+                    _mm256_storeu_pd(lhs_temp, res_vec);
+                    
+                    result(i, j) = lhs_temp[0];
+                    result(i, j + 1) = lhs_temp[1];
+                    result(i, j + 2) = lhs_temp[2];
+                    result(i, j + 3) = lhs_temp[3];
+                }
+                for (; j < lhs.get_cols(); ++j) {
+                    result(i, j) = lhs(i, j) + rhs(i, j);
+                }
+            }
+        } else if constexpr (std::is_same_v<T, U> && detail::is_avx_float<T>) {
+            for (int i = 0; i < lhs.get_rows(); ++i) {
+                int j = 0;
+                for (; j + 8 <= lhs.get_cols(); j += 8) {
+                    float lhs_temp[8] = {lhs(i, j), lhs(i, j + 1), lhs(i, j + 2), lhs(i, j + 3),
+                                        lhs(i, j + 4), lhs(i, j + 5), lhs(i, j + 6), lhs(i, j + 7)};
+                    float rhs_temp[8] = {rhs(i, j), rhs(i, j + 1), rhs(i, j + 2), rhs(i, j + 3),
+                                        rhs(i, j + 4), rhs(i, j + 5), rhs(i, j + 6), rhs(i, j + 7)};
+                    
+                    __m256 lhs_vec = _mm256_loadu_ps(lhs_temp);
+                    __m256 rhs_vec = _mm256_loadu_ps(rhs_temp);
+                    __m256 res_vec = _mm256_add_ps(lhs_vec, rhs_vec);
+                    _mm256_storeu_ps(lhs_temp, res_vec);
+                    
+                    for (int n = 0; n < 8; ++n) {
+                        result(i, j + n) = lhs_temp[n];
+                    }
+                }
+                for (; j < lhs.get_cols(); ++j) {
+                    result(i, j) = lhs(i, j) + rhs(i, j);
+                }
+            }
+        } else {
+            for (int i = 0; i < lhs.get_rows(); ++i) {
+                for (int j = 0; j < lhs.get_cols(); ++j) {
+                    result(i, j) = static_cast<CommonT>(lhs(i, j)) + static_cast<CommonT>(rhs(i, j));
+                }
+            }
+        }
+    #else
+        for (int i = 0; i < lhs.get_rows(); ++i) {
+            for (int j = 0; j < lhs.get_cols(); ++j) {
+                result(i, j) = static_cast<CommonT>(lhs(i, j)) + static_cast<CommonT>(rhs(i, j));
+            }
+        }
+    #endif
+    
+    return result;
+}
+
+template<typename T, typename U>
+auto operator-(const Matrix<T>& lhs, const Matrix<U>& rhs) {
+    if (lhs.get_rows() != rhs.get_rows() || lhs.get_cols() != rhs.get_cols()) {
+        throw std::invalid_argument("Matrix dimensions must match for subtraction");
+    }
+    
+    using CommonT = std::remove_reference_t<detail::matrix_common_type_t<T, U>>;
+    using ResultType = std::remove_reference_t<detail::result_type_sub_t<CommonT, CommonT>>;
+    
+    Matrix<ResultType> result(lhs.get_rows(), lhs.get_cols());
+    
+    if constexpr (detail::is_matrix_v<ResultType>) {
+        if (lhs.get_rows() > 0 && lhs.get_cols() > 0) {
+            int inner_rows = lhs(0, 0).get_rows();
+            int inner_cols = lhs(0, 0).get_cols();
+            
+            for (int i = 0; i < result.get_rows(); ++i) {
+                for (int j = 0; j < result.get_cols(); ++j) {
+                    result(i, j) = ResultType::Zero(inner_rows, inner_cols);
+                }
+            }
+        }
+    }
+    
+    #ifdef __AVX__
+        if constexpr (std::is_same_v<T, U> && detail::is_avx_double<T>) {
+            for (int i = 0; i < lhs.get_rows(); ++i) {
+                int j = 0;
+                for (; j + 4 <= lhs.get_cols(); j += 4) {
+                    double lhs_temp[4] = {lhs(i, j), lhs(i, j + 1), lhs(i, j + 2), lhs(i, j + 3)};
+                    double rhs_temp[4] = {rhs(i, j), rhs(i, j + 1), rhs(i, j + 2), rhs(i, j + 3)};
+                    
+                    __m256d lhs_vec = _mm256_loadu_pd(lhs_temp);
+                    __m256d rhs_vec = _mm256_loadu_pd(rhs_temp);
+                    __m256d res_vec = _mm256_sub_pd(lhs_vec, rhs_vec);
+                    _mm256_storeu_pd(lhs_temp, res_vec);
+                    
+                    result(i, j) = lhs_temp[0];
+                    result(i, j + 1) = lhs_temp[1];
+                    result(i, j + 2) = lhs_temp[2];
+                    result(i, j + 3) = lhs_temp[3];
+                }
+                for (; j < lhs.get_cols(); ++j) {
+                    result(i, j) = lhs(i, j) - rhs(i, j);
+                }
+            }
+        } else if constexpr (std::is_same_v<T, U> && detail::is_avx_float<T>) {
+            for (int i = 0; i < lhs.get_rows(); ++i) {
+                int j = 0;
+                for (; j + 8 <= lhs.get_cols(); j += 8) {
+                    float lhs_temp[8] = {lhs(i, j), lhs(i, j + 1), lhs(i, j + 2), lhs(i, j + 3),
+                                        lhs(i, j + 4), lhs(i, j + 5), lhs(i, j + 6), lhs(i, j + 7)};
+                    float rhs_temp[8] = {rhs(i, j), rhs(i, j + 1), rhs(i, j + 2), rhs(i, j + 3),
+                                        rhs(i, j + 4), rhs(i, j + 5), rhs(i, j + 6), rhs(i, j + 7)};
+                    
+                    __m256 lhs_vec = _mm256_loadu_ps(lhs_temp);
+                    __m256 rhs_vec = _mm256_loadu_ps(rhs_temp);
+                    __m256 res_vec = _mm256_sub_ps(lhs_vec, rhs_vec);
+                    _mm256_storeu_ps(lhs_temp, res_vec);
+                    
+                    for (int n = 0; n < 8; ++n) {
+                        result(i, j + n) = lhs_temp[n];
+                    }
+                }
+                for (; j < lhs.get_cols(); ++j) {
+                    result(i, j) = lhs(i, j) - rhs(i, j);
+                }
+            }
+        } else {
+            for (int i = 0; i < lhs.get_rows(); ++i) {
+                for (int j = 0; j < lhs.get_cols(); ++j) {
+                    result(i, j) = static_cast<CommonT>(lhs(i, j)) - static_cast<CommonT>(rhs(i, j));
+                }
+            }
+        }
+    #else
+        for (int i = 0; i < lhs.get_rows(); ++i) {
+            for (int j = 0; j < lhs.get_cols(); ++j) {
+                result(i, j) = static_cast<CommonT>(lhs(i, j)) - static_cast<CommonT>(rhs(i, j));
+            }
+        }
+    #endif
+    
+    return result;
+}
+
+template<typename T, typename U>
+auto operator*(const Matrix<T>& matrix, const U& scalar) {
+    using ResultType = std::remove_reference_t<detail::result_type_mul_t<T, U>>;
+    Matrix<ResultType> result(matrix.get_rows(), matrix.get_cols());
+    
+    #ifdef __AVX__
+        if constexpr (std::is_same_v<T, U> && detail::is_avx_double<T>) {
+            __m256d scalar_vec = _mm256_set1_pd(scalar);
+            for (int i = 0; i < matrix.get_rows(); ++i) {
+                int j = 0;
+                for (; j + 4 <= matrix.get_cols(); j += 4) {
+                    double temp[4] = {matrix(i, j), matrix(i, j + 1), matrix(i, j + 2), matrix(i, j + 3)};
+                    __m256d vec = _mm256_loadu_pd(temp);
+                    vec = _mm256_mul_pd(vec, scalar_vec);
+                    _mm256_storeu_pd(temp, vec);
+                    
+                    result(i, j) = temp[0];
+                    result(i, j + 1) = temp[1];
+                    result(i, j + 2) = temp[2];
+                    result(i, j + 3) = temp[3];
+                }
+                for (; j < matrix.get_cols(); ++j) {
+                    result(i, j) = matrix(i, j) * scalar;
+                }
+            }
+        } else if constexpr (std::is_same_v<T, U> && detail::is_avx_float<T>) {
+            __m256 scalar_vec = _mm256_set1_ps(scalar);
+            for (int i = 0; i < matrix.get_rows(); ++i) {
+                int j = 0;
+                for (; j + 8 <= matrix.get_cols(); j += 8) {
+                    float temp[8] = {matrix(i, j), matrix(i, j + 1), matrix(i, j + 2), matrix(i, j + 3),
+                                    matrix(i, j + 4), matrix(i, j + 5), matrix(i, j + 6), matrix(i, j + 7)};
+                    __m256 vec = _mm256_loadu_ps(temp);
+                    vec = _mm256_mul_ps(vec, scalar_vec);
+                    _mm256_storeu_ps(temp, vec);
+                    
+                    for (int k = 0; k < 8; ++k) {
+                        result(i, j + k) = temp[k];
+                    }
+                }
+                for (; j < matrix.get_cols(); ++j) {
+                    result(i, j) = matrix(i, j) * scalar;
+                }
+            }
+        } else {
+            for (int i = 0; i < matrix.get_rows(); ++i) {
+                for (int j = 0; j < matrix.get_cols(); ++j) {
+                    result(i, j) = matrix(i, j) * scalar;
+                }
+            }
+        }
+    #else
+        for (int i = 0; i < matrix.get_rows(); ++i) {
+            for (int j = 0; j < matrix.get_cols(); ++j) {
+                result(i, j) = matrix(i, j) * scalar;
+            }
+        }
+    #endif
+    
+    return result;
+}
+
+template<typename T, typename U>
+auto operator/(const Matrix<T>& matrix, const U& scalar) {
+    using ResultType = std::remove_reference_t<detail::result_type_div_t<T, U>>;
+    Matrix<ResultType> result(matrix.get_rows(), matrix.get_cols());
+    
+    #ifdef __AVX__
+        if constexpr (std::is_same_v<T, U> && detail::is_avx_double<T>) {
+            __m256d inv_vec = _mm256_set1_pd(1.0 / scalar);
+            for (int i = 0; i < matrix.get_rows(); ++i) {
+                int j = 0;
+                for (; j + 4 <= matrix.get_cols(); j += 4) {
+                    double temp[4] = {matrix(i, j), matrix(i, j + 1), matrix(i, j + 2), matrix(i, j + 3)};
+                    __m256d vec = _mm256_loadu_pd(temp);
+                    vec = _mm256_mul_pd(vec, inv_vec);
+                    _mm256_storeu_pd(temp, vec);
+                    
+                    result(i, j) = temp[0];
+                    result(i, j + 1) = temp[1];
+                    result(i, j + 2) = temp[2];
+                    result(i, j + 3) = temp[3];
+                }
+                for (; j < matrix.get_cols(); ++j) {
+                    result(i, j) = matrix(i, j) / scalar;
+                }
+            }
+        } else if constexpr (std::is_same_v<T, U> && detail::is_avx_float<T>) {
+            __m256 inv_vec = _mm256_set1_ps(1.0f / scalar);
+            for (int i = 0; i < matrix.get_rows(); ++i) {
+                int j = 0;
+                for (; j + 8 <= matrix.get_cols(); j += 8) {
+                    float temp[8] = {matrix(i, j), matrix(i, j + 1), matrix(i, j + 2), matrix(i, j + 3),
+                                    matrix(i, j + 4), matrix(i, j + 5), matrix(i, j + 6), matrix(i, j + 7)};
+                    __m256 vec = _mm256_loadu_ps(temp);
+                    vec = _mm256_mul_ps(vec, inv_vec);
+                    _mm256_storeu_ps(temp, vec);
+                    
+                    for (int k = 0; k < 8; ++k) {
+                        result(i, j + k) = temp[k];
+                    }
+                }
+                for (; j < matrix.get_cols(); ++j) {
+                    result(i, j) = matrix(i, j) / scalar;
+                }
+            }
+        } else {
+            for (int i = 0; i < matrix.get_rows(); ++i) {
+                for (int j = 0; j < matrix.get_cols(); ++j) {
+                    result(i, j) = matrix(i, j) / scalar;
+                }
+            }
+        }
+    #else
+        for (int i = 0; i < matrix.get_rows(); ++i) {
+            for (int j = 0; j < matrix.get_cols(); ++j) {
+                result(i, j) = matrix(i, j) / scalar;
+            }
+        }
+    #endif
+    
+    return result;
+}
+
+template<typename T, typename U>
+auto operator*(const U& scalar, const Matrix<T>& matrix) {
+    return matrix * scalar;
+}
+
+template<typename T, typename U>
+auto operator+(const U& scalar, const Matrix<T>& matrix) {
+    return matrix + scalar;
+}
+
+template<typename T, typename U>
+auto operator-(const Matrix<T>& matrix, const U& scalar) {
+    using ResultType = detail::result_type_sub_t<T, U>;
+    Matrix<ResultType> result(matrix.get_rows(), matrix.get_cols());
+    
+    for (int i = 0; i < matrix.get_rows(); ++i) {
+        for (int j = 0; j < matrix.get_cols(); ++j) {
+            result(i, j) = static_cast<ResultType>(matrix(i, j));
+        }
+    }
+    
+    int min_dim = std::min(matrix.get_rows(), matrix.get_cols());
+    for (int i = 0; i < min_dim; ++i) {
+        result(i, i) -= static_cast<ResultType>(scalar);
+    }
+    
+    return result;
+}
+
+template<typename T, typename U>
+auto operator-(const U& scalar, const Matrix<T>& matrix) {
+    using ResultType = detail::result_type_sub_t<U, T>;
+    Matrix<ResultType> result(matrix.get_rows(), matrix.get_cols());
+    
+    for (int i = 0; i < matrix.get_rows(); ++i) {
+        for (int j = 0; j < matrix.get_cols(); ++j) {
+            if (i == j && i < std::min(matrix.get_rows(), matrix.get_cols())) {
+                result(i, j) = static_cast<ResultType>(scalar) - static_cast<ResultType>(matrix(i, j));
+            } else {
+                result(i, j) = -static_cast<ResultType>(matrix(i, j));
+            }
+        }
+    }
+    
+    return result;
+}
+    
