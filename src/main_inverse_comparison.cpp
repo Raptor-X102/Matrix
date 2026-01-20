@@ -6,6 +6,56 @@
 
 #include "Matrix.hpp"
 
+// Вспомогательная функция для проверки
+template<typename MatType>
+double check_matrix_identity(const MatType& M) {
+    double max_error = 0.0;
+    using ValueType = typename MatType::value_type;
+    
+    for (int i = 0; i < M.get_rows(); ++i) {
+        for (int j = 0; j < M.get_cols(); ++j) {
+            if constexpr (detail::is_matrix_v<ValueType>) {
+                auto& block = M(i, j);
+                for (int bi = 0; bi < block.get_rows(); ++bi) {
+                    for (int bj = 0; bj < block.get_cols(); ++bj) {
+                        double expected = (i == j && bi == bj) ? 1.0 : 0.0;
+                        double actual = 0.0;
+                        
+                        // Безопасное преобразование типа
+                        if constexpr (std::is_same_v<typename ValueType::value_type, std::complex<double>>) {
+                            actual = std::abs(block(bi, bj));
+                        } else if constexpr (std::is_same_v<typename ValueType::value_type, std::complex<float>>) {
+                            actual = std::abs(block(bi, bj));
+                        } else {
+                            actual = static_cast<double>(block(bi, bj));
+                        }
+                        
+                        double error = std::abs(actual - expected);
+                        if (error > max_error) max_error = error;
+                    }
+                }
+            } else {
+                double expected = (i == j) ? 1.0 : 0.0;
+                double actual = 0.0;
+                
+                // Безопасное преобразование типа
+                if constexpr (std::is_same_v<ValueType, std::complex<double>>) {
+                    actual = std::abs(M(i, j));
+                } else if constexpr (std::is_same_v<ValueType, std::complex<float>>) {
+                    actual = std::abs(M(i, j));
+                } else {
+                    actual = static_cast<double>(M(i, j));
+                }
+                
+                double error = std::abs(actual - expected);
+                if (error > max_error) max_error = error;
+            }
+        }
+    }
+    
+    return max_error;
+}
+
 template <typename MatType>
 void test_inverse_matrix(int n) {
     using ValueType = typename MatType::value_type;
@@ -21,31 +71,67 @@ void test_inverse_matrix(int n) {
     std::cout << "========================================\n";
 
     try {
-        // 1. Генерация матрицы
-        std::cout << "\n1. GENERATING MATRIX...\n";
+        // 1. Генерация ГАРАНТИРОВАННО обратимой матрицы
+        std::cout << "\n1. GENERATING INVERTIBLE MATRIX...\n";
         MatType A;
         
         if constexpr (detail::is_matrix_v<ValueType>) {
-            // Для блочной матрицы
             int block_size;
             std::cout << "   Enter block size (e.g., 2, 3): ";
             std::cin >> block_size;
             
             using InnerType = typename ValueType::value_type;
             
-            // Создаем почти единичную блочную матрицу
-            ValueType identity_block = ValueType::Identity(block_size, block_size);
-            ValueType small_block = ValueType::Identity(block_size, block_size);
+            // Создаем диагонально-доминирующую блочную матрицу
+            A = MatType::BlockMatrix(n, n, block_size, block_size);
             
-            // Добавляем небольшой шум
-            if (block_size > 1) {
-                small_block(0, block_size-1) = static_cast<InnerType>(0.1);
-                small_block(block_size-1, 0) = static_cast<InnerType>(-0.1);
+            // Заполняем как блочно-диагональную с небольшими возмущениями
+            for (int i = 0; i < n; ++i) {
+                for (int j = 0; j < n; ++j) {
+                    if (i == j) {
+                        // Диагональный блок: диагонально-доминирующая матрица
+                        ValueType block = ValueType::Identity(block_size, block_size);
+                        
+                        // Делаем диагонально-доминирующей
+                        for (int bi = 0; bi < block_size; ++bi) {
+                            double diag_val = 1.0 + (bi + 1) * 0.5;
+                            
+                            if constexpr (std::is_same_v<InnerType, std::complex<double>>) {
+                                block(bi, bi) = std::complex<double>(diag_val, 0.0);
+                            } else {
+                                block(bi, bi) = static_cast<InnerType>(diag_val);
+                            }
+                            
+                            // Небольшие недиагональные элементы
+                            for (int bj = 0; bj < block_size; ++bj) {
+                                if (bi != bj) {
+                                    double val = 0.1 / (abs(bi - bj) + 1);
+                                    if constexpr (std::is_same_v<InnerType, std::complex<double>>) {
+                                        block(bi, bj) = std::complex<double>(val, 0.0);
+                                    } else {
+                                        block(bi, bj) = static_cast<InnerType>(val);
+                                    }
+                                }
+                            }
+                        }
+                        A(i, j) = block;
+                    } else if (abs(i - j) == 1) {
+                        // Блоки рядом с диагональю: маленькие значения
+                        ValueType block = ValueType::Zero(block_size, block_size);
+                        if constexpr (std::is_same_v<InnerType, std::complex<double>>) {
+                            block(0, 0) = std::complex<double>(0.05, 0.0);
+                        } else {
+                            block(0, 0) = static_cast<InnerType>(0.05);
+                        }
+                        A(i, j) = block;
+                    } else {
+                        // Остальные блоки: нулевые
+                        A(i, j) = ValueType::Zero(block_size, block_size);
+                    }
+                }
             }
-            
-            A = MatType::Generate_matrix(n, n, identity_block, small_block, 3, identity_block);
         } else {
-            // Для скалярной матрицы
+            // Для скалярных матриц используем существующий генератор
             ValueType min_val, max_val;
             
             if constexpr (std::is_same_v<ValueType, int>) {
@@ -62,7 +148,32 @@ void test_inverse_matrix(int n) {
                 max_val = static_cast<ValueType>(2);
             }
             
-            A = MatType::Generate_matrix(n, n, min_val, max_val, 10, static_cast<ValueType>(1));
+            // Генерируем несколько раз, пока не получим обратимую
+            int attempts = 0;
+            do {
+                A = MatType::Generate_matrix(n, n, min_val, max_val, 10, static_cast<ValueType>(1));
+                attempts++;
+                
+                // Проверяем определитель
+                auto det_opt = A.det();
+                if (det_opt && !MatType::is_zero(*det_opt)) {
+                    break;
+                }
+                
+                if (attempts > 5) {
+                    std::cout << "   ⚠ Could not generate invertible matrix after " << attempts << " attempts\n";
+                    // Используем заведомо обратимую
+                    A = MatType::Identity(n, n);
+                    for (int i = 0; i < n; ++i) {
+                        A(i, i) = static_cast<ValueType>(2.0);
+                        if (i > 0) A(i, i-1) = static_cast<ValueType>(0.1);
+                        if (i < n-1) A(i, i+1) = static_cast<ValueType>(0.1);
+                    }
+                    break;
+                }
+            } while (true);
+            
+            std::cout << "   Generated after " << attempts << " attempt(s)\n";
         }
         
         std::cout << "   ✓ Matrix generated\n";
@@ -82,31 +193,28 @@ void test_inverse_matrix(int n) {
                     std::cout << " with blocks " << A(0, 0).get_rows() << "x" << A(0, 0).get_cols();
                 }
             }
-            std::cout << " - too large to display]\n";
+            std::cout << "]\n";
         }
 
-        // 3. Вычисляем определитель (опционально)
-        std::cout << "\n3. COMPUTING DETERMINANT (optional)...\n";
-        auto det_start = std::chrono::high_resolution_clock::now();
+        // 3. Проверяем определитель
+        std::cout << "\n3. CHECKING DETERMINANT...\n";
         auto det_opt = A.det();
-        auto det_end = std::chrono::high_resolution_clock::now();
-        double det_time = std::chrono::duration<double>(det_end - det_start).count();
-        
         if (det_opt) {
-            std::cout << "   ✓ Determinant computed in " << std::fixed << std::setprecision(6) 
-                      << det_time << " seconds\n";
-            if (n <= 3) {
-                std::cout << "   det(A) = ";
-                if constexpr (detail::is_matrix_v<ValueType>) {
-                    if ((*det_opt).get_rows() <= 3 && (*det_opt).get_cols() <= 3) {
-                        std::cout << "\n";
-                        (*det_opt).precise_print(4);
-                    } else {
-                        std::cout << "[Matrix " << (*det_opt).get_rows() << "x" << (*det_opt).get_cols() << "]\n";
-                    }
-                } else {
-                    std::cout << *det_opt << "\n";
+            std::cout << "   det(A) ";
+            if constexpr (detail::is_matrix_v<ValueType>) {
+                std::cout << "is " << (*det_opt).get_rows() << "x" << (*det_opt).get_cols() << " matrix\n";
+                if ((*det_opt).get_rows() <= 3) {
+                    std::cout << "   ";
+                    (*det_opt).precise_print(4);
                 }
+            } else {
+                std::cout << "= " << *det_opt << "\n";
+            }
+            
+            if (MatType::is_zero(*det_opt)) {
+                std::cout << "   ⚠ WARNING: Matrix appears to be singular!\n";
+            } else {
+                std::cout << "   ✓ Matrix is invertible (det ≠ 0)\n";
             }
         } else {
             std::cout << "   ⚠ Could not compute determinant\n";
@@ -132,97 +240,72 @@ void test_inverse_matrix(int n) {
             } else {
                 A_inv.precise_print(6);
             }
-        } else {
-            std::cout << "   [Inverse matrix " << A_inv.get_rows() << "x" << A_inv.get_cols();
-            if constexpr (detail::is_matrix_v<ValueType>) {
-                if (A_inv.get_rows() > 0 && A_inv.get_cols() > 0) {
-                    std::cout << " with blocks " << A_inv(0, 0).get_rows() << "x" << A_inv(0, 0).get_cols();
-                }
-            }
-            std::cout << " - too large to display]\n";
         }
 
-        // 6. Проверяем умножение A × A⁻¹ ≈ I (для небольших матриц)
-        if (n <= 3) {
-            std::cout << "\n6. VERIFICATION: A × A⁻¹ (should be ≈ I):\n";
-            try {
-                auto product = A * A_inv;
-                
+        // 6. Проверяем умножение
+        std::cout << "\n6. VERIFICATION:\n";
+        
+        double max_error1 = 0.0, max_error2 = 0.0;
+        
+        std::cout << "   a) A × A⁻¹:\n";
+        try {
+            auto P1 = A * A_inv;
+            if (n <= 3) {
                 if constexpr (detail::is_matrix_v<ValueType>) {
-                    product.detailed_print();
+                    P1.detailed_print();
                 } else {
-                    product.precise_print(6);
+                    P1.precise_print(6);
                 }
-                
-                // Проверяем ошибку
-                double max_error = 0.0;
-                for (int i = 0; i < product.get_rows(); ++i) {
-                    for (int j = 0; j < product.get_cols(); ++j) {
-                        if constexpr (detail::is_matrix_v<ValueType>) {
-                            // Для блочной матрицы проверяем каждый блок
-                            auto& block = product(i, j);
-                            for (int bi = 0; bi < block.get_rows(); ++bi) {
-                                for (int bj = 0; bj < block.get_cols(); ++bj) {
-                                    double expected = (i == j && bi == bj) ? 1.0 : 0.0;
-                                    double actual = 0.0;
-                                    
-                                    // Безопасное преобразование типа
-                                    if constexpr (std::is_same_v<typename ValueType::value_type, std::complex<double>>) {
-                                        actual = std::abs(block(bi, bj));
-                                    } else if constexpr (std::is_same_v<typename ValueType::value_type, std::complex<float>>) {
-                                        actual = std::abs(block(bi, bj));
-                                    } else {
-                                        actual = static_cast<double>(block(bi, bj));
-                                    }
-                                    
-                                    double error = std::abs(actual - expected);
-                                    if (error > max_error) max_error = error;
-                                }
-                            }
-                        } else {
-                            // Для скалярной матрицы
-                            using ElemType = typename MatType::value_type;
-                            ElemType actual_elem = product(i, j);
-                            
-                            double actual = 0.0;
-                            double expected = (i == j) ? 1.0 : 0.0;
-                            
-                            // Безопасное преобразование типа
-                            if constexpr (std::is_same_v<ElemType, std::complex<double>>) {
-                                actual = std::abs(actual_elem);
-                            } else if constexpr (std::is_same_v<ElemType, std::complex<float>>) {
-                                actual = std::abs(actual_elem);
-                            } else if constexpr (std::is_integral_v<ElemType>) {
-                                actual = static_cast<double>(actual_elem);
-                            } else {
-                                actual = actual_elem;
-                            }
-                            
-                            double error = std::abs(actual - expected);
-                            if (error > max_error) max_error = error;
-                        }
-                    }
-                }
-                
-                std::cout << "\n   Max error: " << std::scientific << std::setprecision(2) 
-                          << max_error << "\n";
-                if (max_error < 1e-6) {
-                    std::cout << "   ✓ VERIFICATION SUCCESSFUL!\n";
-                } else {
-                    std::cout << "   ⚠ Verification error is large\n";
-                }
-                
-            } catch (const std::exception& e) {
-                std::cout << "   ✗ Verification failed: " << e.what() << "\n";
             }
+            
+            // Проверяем ошибку
+            max_error1 = check_matrix_identity(P1);
+            std::cout << "      Max error: " << std::scientific << std::setprecision(2) 
+                      << max_error1 << "\n";
+            if (max_error1 < 1e-6) {
+                std::cout << "      ✓ A × A⁻¹ ≈ I\n";
+            } else {
+                std::cout << "      ✗ A × A⁻¹ ≠ I (error too large)\n";
+            }
+        } catch (const std::exception& e) {
+            std::cout << "      ✗ Failed: " << e.what() << "\n";
+            max_error1 = 1e10; // Большая ошибка
+        }
+        
+        std::cout << "   b) A⁻¹ × A:\n";
+        try {
+            auto P2 = A_inv * A;
+            if (n <= 3) {
+                if constexpr (detail::is_matrix_v<ValueType>) {
+                    P2.detailed_print();
+                } else {
+                    P2.precise_print(6);
+                }
+            }
+            
+            max_error2 = check_matrix_identity(P2);
+            std::cout << "      Max error: " << std::scientific << std::setprecision(2) 
+                      << max_error2 << "\n";
+            if (max_error2 < 1e-6) {
+                std::cout << "      ✓ A⁻¹ × A ≈ I\n";
+            } else {
+                std::cout << "      ✗ A⁻¹ × A ≠ I (error too large)\n";
+            }
+        } catch (const std::exception& e) {
+            std::cout << "      ✗ Failed: " << e.what() << "\n";
+            max_error2 = 1e10; // Большая ошибка
         }
 
         std::cout << "\n========================================\n";
-        std::cout << "TEST COMPLETED SUCCESSFULLY!\n";
+        if (max_error1 < 1e-6 && max_error2 < 1e-6) {
+            std::cout << "✓ TEST PASSED!\n";
+        } else {
+            std::cout << "⚠ TEST HAS ISSUES (errors too large)\n";
+        }
 
     } catch (const std::exception& e) {
         std::cout << "\n========================================\n";
-        std::cout << "TEST FAILED!\n";
+        std::cout << "✗ TEST FAILED!\n";
         std::cout << "Error: " << e.what() << "\n";
         std::cout << "========================================\n";
     }

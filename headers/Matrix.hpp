@@ -1997,54 +1997,48 @@ private:
         return extract_inverse<ComputeType>(augmented);
     }
 
-    // Исправляем normalize_row для блочных матриц
     template<typename ComputeType, bool IsBlockMatrix>
     void normalize_row(Matrix<ComputeType>& augmented, int row) const {
         int n = augmented.get_rows();
+        ComputeType pivot = augmented(row, row);
+        
+        if (is_element_zero(pivot)) {
+            throw std::runtime_error("Matrix is singular - zero pivot");
+        }
         
         if constexpr (IsBlockMatrix) {
-            ComputeType pivot = augmented(row, row);
-            
-            // Для блочных матриц нужна особая обработка
-            if (is_element_zero(pivot)) {
-                throw std::runtime_error("Matrix is singular - zero pivot block");
-            }
-            
-            try {
-                ComputeType pivot_inv = pivot.inverse();
-                
-                for (int j = row; j < 2 * n; ++j) {
-                    augmented(row, j) = augmented(row, j) * pivot_inv;
-                }
-            } catch (const std::exception& e) {
-                throw std::runtime_error(std::string("Cannot invert pivot block: ") + e.what());
+            // Для блочных матриц: умножаем СЛЕВА на обратную матрицу
+            ComputeType pivot_inv = pivot.inverse();
+            for (int j = row; j < 2 * n; ++j) {
+                augmented(row, j) = pivot_inv * augmented(row, j);  // УМНОЖЕНИЕ СЛЕВА!
             }
         } else {
-            ComputeType pivot = augmented(row, row);
-            
-            if (is_element_zero(pivot)) {
-                throw std::runtime_error("Matrix is singular - zero pivot");
-            }
-            
+            // Для скалярных типов порядок не важен
             for (int j = row; j < 2 * n; ++j) {
                 augmented(row, j) = augmented(row, j) / pivot;
             }
         }
     }
 
-    // Упрощаем eliminate_other_rows
     template<typename ComputeType, bool IsBlockMatrix, bool UseAbs>
     void eliminate_other_rows(Matrix<ComputeType>& augmented, int pivot_row) const {
         int n = augmented.get_rows();
         
         for (int i = 0; i < n; ++i) {
             if (i != pivot_row) {
-                ComputeType factor = augmented(i, pivot_row);
+                ComputeType factor;
+                
+                if constexpr (IsBlockMatrix) {
+                    // Для блочных матриц: factor = A_ij × A_jj⁻¹
+                    factor = augmented(i, pivot_row) * augmented(pivot_row, pivot_row).inverse();
+                } else {
+                    factor = augmented(i, pivot_row) / augmented(pivot_row, pivot_row);
+                }
                 
                 if (!is_element_zero(factor)) {
                     for (int j = pivot_row; j < 2 * n; ++j) {
-                        ComputeType product = factor * augmented(pivot_row, j);
-                        augmented(i, j) = augmented(i, j) - product;
+                        // Вычитаем factor × строку_опорную
+                        augmented(i, j) = augmented(i, j) - factor * augmented(pivot_row, j);
                     }
                 }
             }
