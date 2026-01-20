@@ -15,7 +15,7 @@
 
 enum class TransformationTypes { I_TYPE, II_TYPE, III_TYPE };
 
-template <typename T> class Matrix_1d {
+template<typename T> class Matrix_1d {
 private:
     std::unique_ptr<T[]> matrix_;
     std::unique_ptr<T *[]> row_pointers_;
@@ -24,7 +24,10 @@ private:
 
     static constexpr auto epsilon = 1e-10;
 
-    Matrix_1d(int rows, int cols) : rows_(rows), cols_(cols), min_dim_(std::min(rows, cols)) {
+    Matrix_1d(int rows, int cols)
+        : rows_(rows)
+        , cols_(cols)
+        , min_dim_(std::min(rows, cols)) {
         alloc_matrix_();
     }
 
@@ -69,8 +72,10 @@ public:
     static Matrix_1d Identity(int rows) { return Identity(rows, rows); }
 
     static Matrix_1d Diagonal(int rows, int cols, const std::vector<T> &diagonal) {
-        Matrix_1d result = Matrix_1d::Zero(static_cast<int>(rows), static_cast<int>(cols));
-        int diag_size = std::min(result.get_min_dim(), static_cast<int>(diagonal.size()));
+        Matrix_1d result =
+            Matrix_1d::Zero(static_cast<int>(rows), static_cast<int>(cols));
+        int diag_size =
+            std::min(result.get_min_dim(), static_cast<int>(diagonal.size()));
         for (int i = 0; i < diag_size; i++)
             result(i, i) = diagonal[i];
 
@@ -97,7 +102,8 @@ public:
         }
 
         size_t rows = input.size();
-        Matrix_1d result = Matrix_1d::Zero(static_cast<int>(rows), static_cast<int>(max_cols));
+        Matrix_1d result =
+            Matrix_1d::Zero(static_cast<int>(rows), static_cast<int>(max_cols));
 
         for (size_t i = 0; i < rows; i++) {
             const auto &current_row = input[i];
@@ -133,10 +139,13 @@ public:
         return matrix;
     }
 
-    static Matrix_1d Generate_matrix(int rows, int cols,
-        std::conditional_t<std::is_same_v<T, int>, int, T> min_val = {},
-        std::conditional_t<std::is_same_v<T, int>, int, T> max_val = {}, int iterations = 100,
-        T target_determinant_magnitude = T{1}) {
+    static Matrix_1d
+    Generate_matrix(int rows,
+                    int cols,
+                    std::conditional_t<std::is_same_v<T, int>, int, T> min_val = {},
+                    std::conditional_t<std::is_same_v<T, int>, int, T> max_val = {},
+                    int iterations = 100,
+                    T target_determinant_magnitude = T{1}) {
         if constexpr (std::is_floating_point_v<T>) {
             if (min_val == T{} && max_val == T{}) {
                 min_val = T{-10};
@@ -144,18 +153,27 @@ public:
             }
         }
 
-        std::vector<T> diagonal = create_controlled_diagonal(
-            std::min(rows, cols), min_val, max_val, target_determinant_magnitude);
+        std::vector<T> diagonal =
+            create_controlled_diagonal(std::min(rows, cols),
+                                       min_val,
+                                       max_val,
+                                       target_determinant_magnitude);
         Matrix_1d result(rows, cols);
         result.fill_diagonal(diagonal);
         result.fill_upper_triangle(min_val, max_val);
 
-        apply_controlled_transformations(result, rows, cols, min_val, max_val, iterations);
+        apply_controlled_transformations(result,
+                                         rows,
+                                         cols,
+                                         min_val,
+                                         max_val,
+                                         iterations);
 
         return result;
     }
 
-    static std::vector<T> create_controlled_diagonal(int size,
+    static std::vector<T> create_controlled_diagonal(
+        int size,
         std::conditional_t<std::is_same_v<T, int>, int, T> min_val,
         std::conditional_t<std::is_same_v<T, int>, int, T> max_val,
         T target_determinant_magnitude) {
@@ -193,9 +211,13 @@ public:
         return diagonal;
     }
 
-    static void apply_controlled_transformations(Matrix_1d &matrix, int rows, int cols,
+    static void apply_controlled_transformations(
+        Matrix_1d &matrix,
+        int rows,
+        int cols,
         std::conditional_t<std::is_same_v<T, int>, int, T> min_val,
-        std::conditional_t<std::is_same_v<T, int>, int, T> max_val, int iterations) {
+        std::conditional_t<std::is_same_v<T, int>, int, T> max_val,
+        int iterations) {
         T effective_det = T{1};
         T sign = T{1};
 
@@ -232,7 +254,9 @@ public:
                     if constexpr (std::is_floating_point_v<T>) {
                         T abs_det = std::abs(effective_det);
                         if (abs_det > T{1e100}) {
-                            matrix.stabilize_for_large_determinant(rows, cols, effective_det);
+                            matrix.stabilize_for_large_determinant(rows,
+                                                                   cols,
+                                                                   effective_det);
                         }
                     }
                 }
@@ -259,7 +283,8 @@ public:
         matrix.determinant_ = sign * effective_det;
     }
 
-    void fill_upper_triangle(std::conditional_t<std::is_same_v<T, int>, int, T> min_val = {},
+    void fill_upper_triangle(
+        std::conditional_t<std::is_same_v<T, int>, int, T> min_val = {},
         std::conditional_t<std::is_same_v<T, int>, int, T> max_val = {}) {
         for (int i = 0; i < min_dim_; ++i) {
             for (int j = i + 1; j < cols_; ++j) {
@@ -291,7 +316,10 @@ public:
         }
     }
 
-    Matrix_1d(const Matrix_1d &rhs) : rows_(rhs.rows_), cols_(rhs.cols_), min_dim_(rhs.min_dim_) {
+    Matrix_1d(const Matrix_1d &rhs)
+        : rows_(rhs.rows_)
+        , cols_(rhs.cols_)
+        , min_dim_(rhs.min_dim_) {
         alloc_matrix_();
 
         for (int i = 0; i < rows_ * cols_; i++)
@@ -352,7 +380,8 @@ public:
 
     void add_row_scaled(int target_row, int source_row, T scalar = T{1}) {
         for (int j = 0; j < cols_; ++j)
-            (*this)(target_row, j) = (*this)(target_row, j) + (*this)(source_row, j) * scalar;
+            (*this)(target_row, j) =
+                (*this)(target_row, j) + (*this)(source_row, j) * scalar;
     }
 
     void print() const {
@@ -471,8 +500,8 @@ public:
     }
 
     std::optional<T> det(int row, int col, int size) {
-        if (row < 0 || row >= rows_ || col < 0 || col >= cols_ || row + size > rows_ ||
-            col + size > cols_ || size <= 0) {
+        if (row < 0 || row >= rows_ || col < 0 || col >= cols_ || row + size > rows_
+            || col + size > cols_ || size <= 0) {
             return std::nullopt;
         }
 
@@ -528,7 +557,8 @@ public:
                 T coeff = matrix_cpy(i, current_col) / pivot;
 
                 for (int c = current_col + 1; c < col + size; ++c) {
-                    matrix_cpy(i, c) = matrix_cpy(i, c) - coeff * matrix_cpy(best_row, c);
+                    matrix_cpy(i, c) =
+                        matrix_cpy(i, c) - coeff * matrix_cpy(best_row, c);
                 }
             }
         }
@@ -551,8 +581,9 @@ private:
         return dis(gen);
     }
 
-    static T generate_random(std::conditional_t<std::is_same_v<T, int>, int, T> min_val = {},
-        std::conditional_t<std::is_same_v<T, int>, int, T> max_val = {}) {
+    static T
+    generate_random(std::conditional_t<std::is_same_v<T, int>, int, T> min_val = {},
+                    std::conditional_t<std::is_same_v<T, int>, int, T> max_val = {}) {
         if constexpr (std::is_same_v<T, int>) {
             int actual_min = static_cast<int>(min_val);
             int actual_max = static_cast<int>(max_val);
@@ -573,8 +604,9 @@ private:
             std::uniform_real_distribution<double> dis(actual_min, actual_max);
             return static_cast<T>(dis(gen));
         } else {
-            static_assert(std::is_constructible_v<T, int> || std::is_constructible_v<T, double>,
-                "T must be constructible from int or double");
+            static_assert(std::is_constructible_v<T, int>
+                              || std::is_constructible_v<T, double>,
+                          "T must be constructible from int or double");
         }
     }
 };

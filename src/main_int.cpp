@@ -9,7 +9,8 @@
 
 using ScalarType = int;
 
-template <typename MatType> void test_det_with_timer_and_print(const std::string &name, int n) {
+template<typename MatType>
+void test_det_with_timer_and_print(const std::string &name, int n) {
     std::cout << "Testing " << name << "...\n";
 
     auto matrix = MatType::Generate_binary_matrix(n, n);
@@ -49,8 +50,10 @@ template <typename MatType> void test_det_with_timer_and_print(const std::string
 
     if (expected_det && computed_det) {
         if (*expected_det != *computed_det) {
-            std::cerr << "ERROR: " << name << " computed determinant differs from expected!\n";
-            std::cerr << "Expected: " << *expected_det << ", Got: " << *computed_det << "\n";
+            std::cerr << "ERROR: " << name
+                      << " computed determinant differs from expected!\n";
+            std::cerr << "Expected: " << *expected_det << ", Got: " << *computed_det
+                      << "\n";
         } else {
             std::cout << name << " determinant: OK.\n";
         }

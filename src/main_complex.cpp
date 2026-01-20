@@ -10,11 +10,12 @@
 
 using ScalarType = std::complex<double>;
 
-template <typename MatType>
+template<typename MatType>
 void test_det_with_timer_and_print(const std::string &name, int n) {
     std::cout << "Testing " << name << " with complex numbers...\n";
 
-    auto matrix = MatType::Generate_matrix(n, n, ScalarType{-2.0, -1.0}, ScalarType{2.0, 1.0});
+    auto matrix =
+        MatType::Generate_matrix(n, n, ScalarType{-2.0, -1.0}, ScalarType{2.0, 1.0});
 
     if (n <= 5) {
         std::cout << "Generated matrix:\n";
