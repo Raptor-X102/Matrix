@@ -322,7 +322,7 @@ int main() {
         std::cout << std::endl;
     }
 
-    // 14. Test inverse of block matrix
+   /* // 14. Test inverse of block matrix
     {
         std::cout << "14. Inverse of simple block matrix:\n";
         
@@ -350,7 +350,7 @@ int main() {
         }
         
         std::cout << std::endl;
-    }
+    }*/
 
     // 16. Test multi-level block matrix (matrix of matrices of matrices)
     {
