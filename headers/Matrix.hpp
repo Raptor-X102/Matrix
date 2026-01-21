@@ -160,6 +160,8 @@ public:
     void precise_print(int precision = 15) const;
     void detailed_print() const;
 
+    Matrix<T> transpose() const;
+
     template<typename U>
     friend std::ostream &operator<<(std::ostream &os, const Matrix<U> &matrix);
 
@@ -205,6 +207,26 @@ private:
     template<typename U> static double compute_block_norm(const U &block);
 
     template<typename U> static bool is_element_zero(const U &elem);
+
+    enum class TransposeAlgorithm { SIMPLE, BLOCKED, SIMD_BLOCKED };
+
+    void transpose_impl(Matrix<T>& result) const;
+
+    void transpose_simple(Matrix<T>& result) const;
+    void transpose_blocked(Matrix<T>& result) const;
+    void transpose_blocked_impl(Matrix<T>& result, int block_size) const;
+
+    template<typename U, int SIMD_WIDTH>
+    void transpose_simd_blocked(Matrix<U>& result) const;
+    void transpose_block_simd_float(Matrix<float>& result, int start_i, int start_j,
+                                   int rows_in_block, int cols_in_block) const;
+    void transpose_block_simd_double(Matrix<double>& result, int start_i, int start_j,
+                                    int rows_in_block, int cols_in_block) const;
+
+    TransposeAlgorithm select_transpose_algorithm() const;
+    int compute_optimal_block_size() const;
+    bool should_use_blocking() const;
+    bool is_small_matrix() const;
 };
 
 template<typename T, typename U>
@@ -244,3 +266,4 @@ auto operator-(const U &scalar, const Matrix<T> &matrix);
 #include "Matrix_determinant.ipp"
 #include "Matrix_inverse.ipp"
 #include "Matrix_helpers.ipp"
+#include "Matrix_transpose.ipp"
