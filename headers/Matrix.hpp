@@ -98,85 +98,160 @@ namespace detail {
     template<typename T, typename U>
     using matrix_common_type_t = typename matrix_common_type<T, U>::type;
 
-    template<typename T, typename U, typename = void> struct result_type_mul_impl {
-        using type = void;
+    template<typename T, typename U>
+    struct matrix_common_type<Matrix<T>, U> {
+        using type = Matrix<typename matrix_common_type<T, U>::type>;
     };
 
     template<typename T, typename U>
-    struct result_type_mul_impl<
-        T,
-        U,
-        std::void_t<decltype(std::declval<remove_all_ref_t<T>>()
-                             * std::declval<remove_all_ref_t<U>>())>> {
-        using type = remove_all_ref_t<decltype(std::declval<remove_all_ref_t<T>>()
-                                               * std::declval<remove_all_ref_t<U>>())>;
+    struct matrix_common_type<T, Matrix<U>> {
+        using type = Matrix<typename matrix_common_type<T, U>::type>;
     };
 
-    template<typename T, typename U>
-    struct result_type_mul : result_type_mul_impl<T, U> {};
+    template<typename...>
+    struct dependent_false : std::false_type {};
 
-    template<typename T, typename U>
-    using result_type_mul_t = typename result_type_mul<T, U>::type;
+    template<typename T, typename U, typename = void>
+    struct result_type_mul_impl;
 
-    template<typename T, typename U, typename = void> struct result_type_add_impl {
-        using type = void;
+    template<typename T, typename U, typename = void>
+    struct result_type_add_impl;
+
+    template<typename T, typename U, typename = void>
+    struct result_type_sub_impl;
+
+    template<typename T, typename U, typename = void>
+    struct result_type_div_impl;
+
+    template<>
+    struct result_type_mul_impl<std::complex<float>, std::complex<double>, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_mul_impl<std::complex<double>, std::complex<float>, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_mul_impl<std::complex<float>, double, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_mul_impl<double, std::complex<float>, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_mul_impl<std::complex<double>, float, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_mul_impl<float, std::complex<double>, void> {
+        using type = std::complex<double>;
     };
 
-    template<typename T, typename U>
-    struct result_type_add_impl<
-        T,
-        U,
-        std::void_t<decltype(std::declval<remove_all_ref_t<T>>()
-                             + std::declval<remove_all_ref_t<U>>())>> {
-        using type = remove_all_ref_t<decltype(std::declval<remove_all_ref_t<T>>()
-                                               + std::declval<remove_all_ref_t<U>>())>;
+    template<>
+    struct result_type_add_impl<std::complex<float>, std::complex<double>, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_add_impl<std::complex<double>, std::complex<float>, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_add_impl<std::complex<float>, double, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_add_impl<double, std::complex<float>, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_add_impl<std::complex<double>, float, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_add_impl<float, std::complex<double>, void> {
+        using type = std::complex<double>;
     };
 
-    template<typename T, typename U>
-    struct result_type_add : result_type_add_impl<T, U> {};
-
-    template<typename T, typename U>
-    using result_type_add_t = typename result_type_add<T, U>::type;
-
-    template<typename T, typename U, typename = void> struct result_type_sub_impl {
-        using type = void;
+    template<>
+    struct result_type_sub_impl<std::complex<float>, std::complex<double>, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_sub_impl<std::complex<double>, std::complex<float>, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_sub_impl<std::complex<float>, double, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_sub_impl<double, std::complex<float>, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_sub_impl<std::complex<double>, float, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_sub_impl<float, std::complex<double>, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_sub_impl<std::complex<double>, int, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_sub_impl<int, std::complex<double>, void> {
+        using type = std::complex<double>;
     };
 
-    template<typename T, typename U>
-    struct result_type_sub_impl<
-        T,
-        U,
-        std::void_t<decltype(std::declval<remove_all_ref_t<T>>()
-                             - std::declval<remove_all_ref_t<U>>())>> {
-        using type = remove_all_ref_t<decltype(std::declval<remove_all_ref_t<T>>()
-                                               - std::declval<remove_all_ref_t<U>>())>;
+    template<>
+    struct result_type_div_impl<std::complex<float>, std::complex<double>, void> {
+        using type = std::complex<double>;
     };
-
-    template<typename T, typename U>
-    struct result_type_sub : result_type_sub_impl<T, U> {};
-
-    template<typename T, typename U>
-    using result_type_sub_t = typename result_type_sub<T, U>::type;
-
-    template<typename T, typename U, typename = void> struct result_type_div_impl {
-        using type = void;
+    
+    template<>
+    struct result_type_div_impl<std::complex<double>, std::complex<float>, void> {
+        using type = std::complex<double>;
     };
-
-    template<typename T, typename U>
-    struct result_type_div_impl<
-        T,
-        U,
-        std::void_t<decltype(std::declval<remove_all_ref_t<T>>()
-                             / std::declval<remove_all_ref_t<U>>())>> {
-        using type = remove_all_ref_t<decltype(std::declval<remove_all_ref_t<T>>()
-                                               / std::declval<remove_all_ref_t<U>>())>;
+    
+    template<>
+    struct result_type_div_impl<std::complex<float>, double, void> {
+        using type = std::complex<double>;
     };
-
-    template<typename T, typename U>
-    struct result_type_div : result_type_div_impl<T, U> {};
-
-    template<typename T, typename U>
-    using result_type_div_t = typename result_type_div<T, U>::type;
+    
+    template<>
+    struct result_type_div_impl<double, std::complex<float>, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_div_impl<std::complex<double>, float, void> {
+        using type = std::complex<double>;
+    };
+    
+    template<>
+    struct result_type_div_impl<float, std::complex<double>, void> {
+        using type = std::complex<double>;
+    };
 
     template<typename T> struct inverse_return_type_impl {
         using type = T;
@@ -1747,20 +1822,6 @@ namespace matrix_ops_detail {
     template<typename T, typename U>
     using CommonType = std::remove_reference_t<detail::matrix_common_type_t<T, U>>;
 
-    template<typename T, typename U>
-    using AddResult = std::remove_reference_t<
-        detail::result_type_add_t<CommonType<T, U>, CommonType<T, U>>>;
-
-    template<typename T, typename U>
-    using SubResult = std::remove_reference_t<
-        detail::result_type_sub_t<CommonType<T, U>, CommonType<T, U>>>;
-
-    template<typename T, typename U>
-    using MulResult = std::remove_reference_t<detail::result_type_mul_t<T, U>>;
-
-    template<typename T, typename U>
-    using DivResult = std::remove_reference_t<detail::result_type_div_t<T, U>>;
-
     template<typename ResultType, typename T>
     void init_block_matrix(Matrix<ResultType> &result, const Matrix<T> &lhs) {
         if constexpr (detail::is_matrix_v<ResultType>) {
@@ -1812,22 +1873,32 @@ namespace matrix_ops_detail {
     }
 } // namespace matrix_ops_detail
 
-template<typename T, typename U> auto operator*(const Matrix<T> &A, const Matrix<U> &B) {
-    if (A.get_cols() != B.get_rows()) {
-        throw std::invalid_argument("Matrix dimensions don't match for multiplication");
+template<typename T, typename U>
+auto operator+(const Matrix<T>& lhs, const Matrix<U>& rhs) {
+    if (lhs.get_rows() != rhs.get_rows() || lhs.get_cols() != rhs.get_cols()) {
+        throw std::invalid_argument("Matrix dimensions must match for addition");
     }
-
-    using CommonT = std::remove_reference_t<detail::matrix_common_type_t<T, U>>;
-    using ResultType =
-        std::remove_reference_t<detail::result_type_mul_t<CommonT, CommonT>>;
-
-    Matrix<ResultType> result(A.get_rows(), B.get_cols());
-
+    
+    using ResultType = detail::result_type_add_t<T, U>;
+    
+    Matrix<ResultType> result(lhs.get_rows(), lhs.get_cols());
+    
     if constexpr (detail::is_matrix_v<ResultType>) {
-        if (A.get_rows() > 0 && A.get_cols() > 0 && B.get_cols() > 0) {
-            int inner_rows = A(0, 0).get_rows();
-            int inner_cols = B(0, 0).get_cols();
-
+        if (lhs.get_rows() > 0 && lhs.get_cols() > 0) {
+            int inner_rows = 1, inner_cols = 1;
+            
+            if constexpr (detail::is_matrix_v<T>) {
+                if (lhs(0, 0).get_rows() > 0) {
+                    inner_rows = lhs(0, 0).get_rows();
+                    inner_cols = lhs(0, 0).get_cols();
+                }
+            } else if constexpr (detail::is_matrix_v<U>) {
+                if (rhs(0, 0).get_rows() > 0) {
+                    inner_rows = rhs(0, 0).get_rows();
+                    inner_cols = rhs(0, 0).get_cols();
+                }
+            }
+            
             for (int i = 0; i < result.get_rows(); ++i) {
                 for (int j = 0; j < result.get_cols(); ++j) {
                     result(i, j) = ResultType::Zero(inner_rows, inner_cols);
@@ -1835,270 +1906,273 @@ template<typename T, typename U> auto operator*(const Matrix<T> &A, const Matrix
             }
         }
     }
-
-#ifdef __AVX__
-    if constexpr (std::is_same_v<T, U> && detail::is_avx_double<T>) {
-        for (int i = 0; i < A.get_rows(); ++i) {
-            for (int k = 0; k < A.get_cols(); ++k) {
-                double a_ik = A(i, k);
-                __m256d a_vec = _mm256_set1_pd(a_ik);
+    
+    #ifdef __AVX__
+        if constexpr (std::is_same_v<T, U> && detail::is_avx_double<T>) {
+            for (int i = 0; i < lhs.get_rows(); ++i) {
                 int j = 0;
-                for (; j + 4 <= B.get_cols(); j += 4) {
-                    double b_temp[4] = {B(k, j), B(k, j + 1), B(k, j + 2), B(k, j + 3)};
-                    double c_temp[4] = {result(i, j),
-                                        result(i, j + 1),
-                                        result(i, j + 2),
-                                        result(i, j + 3)};
-
-                    __m256d b_vec = _mm256_loadu_pd(b_temp);
-                    __m256d c_vec = _mm256_loadu_pd(c_temp);
-                    c_vec = _mm256_add_pd(c_vec, _mm256_mul_pd(a_vec, b_vec));
-                    _mm256_storeu_pd(c_temp, c_vec);
-
-                    result(i, j) = c_temp[0];
-                    result(i, j + 1) = c_temp[1];
-                    result(i, j + 2) = c_temp[2];
-                    result(i, j + 3) = c_temp[3];
+                for (; j + 4 <= lhs.get_cols(); j += 4) {
+                    double lhs_temp[4] = {lhs(i, j), lhs(i, j + 1), lhs(i, j + 2), lhs(i, j + 3)};
+                    double rhs_temp[4] = {rhs(i, j), rhs(i, j + 1), rhs(i, j + 2), rhs(i, j + 3)};
+                    
+                    __m256d lhs_vec = _mm256_loadu_pd(lhs_temp);
+                    __m256d rhs_vec = _mm256_loadu_pd(rhs_temp);
+                    __m256d res_vec = _mm256_add_pd(lhs_vec, rhs_vec);
+                    _mm256_storeu_pd(lhs_temp, res_vec);
+                    
+                    result(i, j) = lhs_temp[0];
+                    result(i, j + 1) = lhs_temp[1];
+                    result(i, j + 2) = lhs_temp[2];
+                    result(i, j + 3) = lhs_temp[3];
                 }
-                for (; j < B.get_cols(); ++j) {
-                    result(i, j) += A(i, k) * B(k, j);
+                for (; j < lhs.get_cols(); ++j) {
+                    result(i, j) = lhs(i, j) + rhs(i, j);
                 }
             }
-        }
-    } else if constexpr (std::is_same_v<T, U> && detail::is_avx_float<T>) {
-        for (int i = 0; i < A.get_rows(); ++i) {
-            for (int k = 0; k < A.get_cols(); ++k) {
-                float a_ik = A(i, k);
-                __m256 a_vec = _mm256_set1_ps(a_ik);
+        } else if constexpr (std::is_same_v<T, U> && detail::is_avx_float<T>) {
+            for (int i = 0; i < lhs.get_rows(); ++i) {
                 int j = 0;
-                for (; j + 8 <= B.get_cols(); j += 8) {
-                    float b_temp[8] = {B(k, j),
-                                       B(k, j + 1),
-                                       B(k, j + 2),
-                                       B(k, j + 3),
-                                       B(k, j + 4),
-                                       B(k, j + 5),
-                                       B(k, j + 6),
-                                       B(k, j + 7)};
-                    float c_temp[8] = {result(i, j),
-                                       result(i, j + 1),
-                                       result(i, j + 2),
-                                       result(i, j + 3),
-                                       result(i, j + 4),
-                                       result(i, j + 5),
-                                       result(i, j + 6),
-                                       result(i, j + 7)};
-
-                    __m256 b_vec = _mm256_loadu_ps(b_temp);
-                    __m256 c_vec = _mm256_loadu_ps(c_temp);
-                    c_vec = _mm256_add_ps(c_vec, _mm256_mul_ps(a_vec, b_vec));
-                    _mm256_storeu_ps(c_temp, c_vec);
-
+                for (; j + 8 <= lhs.get_cols(); j += 8) {
+                    float lhs_temp[8] = {lhs(i, j), lhs(i, j + 1), lhs(i, j + 2), lhs(i, j + 3),
+                                        lhs(i, j + 4), lhs(i, j + 5), lhs(i, j + 6), lhs(i, j + 7)};
+                    float rhs_temp[8] = {rhs(i, j), rhs(i, j + 1), rhs(i, j + 2), rhs(i, j + 3),
+                                        rhs(i, j + 4), rhs(i, j + 5), rhs(i, j + 6), rhs(i, j + 7)};
+                    
+                    __m256 lhs_vec = _mm256_loadu_ps(lhs_temp);
+                    __m256 rhs_vec = _mm256_loadu_ps(rhs_temp);
+                    __m256 res_vec = _mm256_add_ps(lhs_vec, rhs_vec);
+                    _mm256_storeu_ps(lhs_temp, res_vec);
+                    
                     for (int n = 0; n < 8; ++n) {
-                        result(i, j + n) = c_temp[n];
+                        result(i, j + n) = lhs_temp[n];
                     }
                 }
-                for (; j < B.get_cols(); ++j) {
-                    result(i, j) += A(i, k) * B(k, j);
+                for (; j < lhs.get_cols(); ++j) {
+                    result(i, j) = lhs(i, j) + rhs(i, j);
+                }
+            }
+        } else {
+            for (int i = 0; i < lhs.get_rows(); ++i) {
+                for (int j = 0; j < lhs.get_cols(); ++j) {
+                    result(i, j) = lhs(i, j) + rhs(i, j);
                 }
             }
         }
-    } else {
-        for (int i = 0; i < A.get_rows(); ++i) {
-            for (int k = 0; k < A.get_cols(); ++k) {
-                CommonT a_ik = static_cast<CommonT>(A(i, k));
-                for (int j = 0; j < B.get_cols(); ++j) {
-                    result(i, j) += a_ik * static_cast<CommonT>(B(k, j));
-                }
+    #else
+        for (int i = 0; i < lhs.get_rows(); ++i) {
+            for (int j = 0; j < lhs.get_cols(); ++j) {
+                result(i, j) = lhs(i, j) + rhs(i, j);
             }
         }
-    }
-#else
-    for (int i = 0; i < A.get_rows(); ++i) {
-        for (int k = 0; k < A.get_cols(); ++k) {
-            CommonT a_ik = static_cast<CommonT>(A(i, k));
-            for (int j = 0; j < B.get_cols(); ++j) {
-                result(i, j) += a_ik * static_cast<CommonT>(B(k, j));
-            }
-        }
-    }
-#endif
-
+    #endif
+    
     return result;
 }
 
 template<typename T, typename U>
-auto operator+(const Matrix<T> &lhs, const Matrix<U> &rhs) {
-    using namespace matrix_ops_detail;
-
-    if (lhs.get_rows() != rhs.get_rows() || lhs.get_cols() != rhs.get_cols()) {
-        throw std::invalid_argument("Matrix dimensions must match for addition");
-    }
-
-    using CommonT = CommonType<T, U>;
-    using ResultType = AddResult<T, U>;
-
-    Matrix<ResultType> result(lhs.get_rows(), lhs.get_cols());
-    init_block_matrix<ResultType, T>(result, lhs);
-
-#ifdef __AVX__
-    if constexpr (std::is_same_v<T, U> && detail::is_avx_double<T>) {
-        for (int i = 0; i < lhs.get_rows(); ++i) {
-            int j = 0;
-            for (; j + 4 <= lhs.get_cols(); j += 4) {
-                double lhs_temp[4] = {lhs(i, j),
-                                      lhs(i, j + 1),
-                                      lhs(i, j + 2),
-                                      lhs(i, j + 3)};
-                double rhs_temp[4] = {rhs(i, j),
-                                      rhs(i, j + 1),
-                                      rhs(i, j + 2),
-                                      rhs(i, j + 3)};
-
-                __m256d lhs_vec = _mm256_loadu_pd(lhs_temp);
-                __m256d rhs_vec = _mm256_loadu_pd(rhs_temp);
-                __m256d res_vec = _mm256_add_pd(lhs_vec, rhs_vec);
-                _mm256_storeu_pd(lhs_temp, res_vec);
-
-                result(i, j) = lhs_temp[0];
-                result(i, j + 1) = lhs_temp[1];
-                result(i, j + 2) = lhs_temp[2];
-                result(i, j + 3) = lhs_temp[3];
-            }
-            for (; j < lhs.get_cols(); ++j) {
-                result(i, j) = lhs(i, j) + rhs(i, j);
-            }
-        }
-        return result;
-    } else if constexpr (std::is_same_v<T, U> && detail::is_avx_float<T>) {
-        for (int i = 0; i < lhs.get_rows(); ++i) {
-            int j = 0;
-            for (; j + 8 <= lhs.get_cols(); j += 8) {
-                float lhs_temp[8] = {lhs(i, j),
-                                     lhs(i, j + 1),
-                                     lhs(i, j + 2),
-                                     lhs(i, j + 3),
-                                     lhs(i, j + 4),
-                                     lhs(i, j + 5),
-                                     lhs(i, j + 6),
-                                     lhs(i, j + 7)};
-                float rhs_temp[8] = {rhs(i, j),
-                                     rhs(i, j + 1),
-                                     rhs(i, j + 2),
-                                     rhs(i, j + 3),
-                                     rhs(i, j + 4),
-                                     rhs(i, j + 5),
-                                     rhs(i, j + 6),
-                                     rhs(i, j + 7)};
-
-                __m256 lhs_vec = _mm256_loadu_ps(lhs_temp);
-                __m256 rhs_vec = _mm256_loadu_ps(rhs_temp);
-                __m256 res_vec = _mm256_add_ps(lhs_vec, rhs_vec);
-                _mm256_storeu_ps(lhs_temp, res_vec);
-
-                for (int n = 0; n < 8; ++n) {
-                    result(i, j + n) = lhs_temp[n];
-                }
-            }
-            for (; j < lhs.get_cols(); ++j) {
-                result(i, j) = lhs(i, j) + rhs(i, j);
-            }
-        }
-        return result;
-    }
-#endif
-
-    return perform_elementwise(lhs, rhs, [](auto a, auto b) {
-        using ResultType = decltype(a + b);
-        return static_cast<ResultType>(a) + static_cast<ResultType>(b);
-    });
-}
-
-template<typename T, typename U>
-auto operator-(const Matrix<T> &lhs, const Matrix<U> &rhs) {
-    using namespace matrix_ops_detail;
-
+auto operator-(const Matrix<T>& lhs, const Matrix<U>& rhs) {
     if (lhs.get_rows() != rhs.get_rows() || lhs.get_cols() != rhs.get_cols()) {
         throw std::invalid_argument("Matrix dimensions must match for subtraction");
     }
-
-    using CommonT = CommonType<T, U>;
-    using ResultType = SubResult<T, U>;
-
+    
+    using ResultType = detail::result_type_sub_t<T, U>;
+    
     Matrix<ResultType> result(lhs.get_rows(), lhs.get_cols());
-    init_block_matrix<ResultType, T>(result, lhs);
-
-#ifdef __AVX__
-    if constexpr (std::is_same_v<T, U> && detail::is_avx_double<T>) {
-        for (int i = 0; i < lhs.get_rows(); ++i) {
-            int j = 0;
-            for (; j + 4 <= lhs.get_cols(); j += 4) {
-                double lhs_temp[4] = {lhs(i, j),
-                                      lhs(i, j + 1),
-                                      lhs(i, j + 2),
-                                      lhs(i, j + 3)};
-                double rhs_temp[4] = {rhs(i, j),
-                                      rhs(i, j + 1),
-                                      rhs(i, j + 2),
-                                      rhs(i, j + 3)};
-
-                __m256d lhs_vec = _mm256_loadu_pd(lhs_temp);
-                __m256d rhs_vec = _mm256_loadu_pd(rhs_temp);
-                __m256d res_vec = _mm256_sub_pd(lhs_vec, rhs_vec);
-                _mm256_storeu_pd(lhs_temp, res_vec);
-
-                result(i, j) = lhs_temp[0];
-                result(i, j + 1) = lhs_temp[1];
-                result(i, j + 2) = lhs_temp[2];
-                result(i, j + 3) = lhs_temp[3];
-            }
-            for (; j < lhs.get_cols(); ++j) {
-                result(i, j) = lhs(i, j) - rhs(i, j);
-            }
-        }
-        return result;
-    } else if constexpr (std::is_same_v<T, U> && detail::is_avx_float<T>) {
-        for (int i = 0; i < lhs.get_rows(); ++i) {
-            int j = 0;
-            for (; j + 8 <= lhs.get_cols(); j += 8) {
-                float lhs_temp[8] = {lhs(i, j),
-                                     lhs(i, j + 1),
-                                     lhs(i, j + 2),
-                                     lhs(i, j + 3),
-                                     lhs(i, j + 4),
-                                     lhs(i, j + 5),
-                                     lhs(i, j + 6),
-                                     lhs(i, j + 7)};
-                float rhs_temp[8] = {rhs(i, j),
-                                     rhs(i, j + 1),
-                                     rhs(i, j + 2),
-                                     rhs(i, j + 3),
-                                     rhs(i, j + 4),
-                                     rhs(i, j + 5),
-                                     rhs(i, j + 6),
-                                     rhs(i, j + 7)};
-
-                __m256 lhs_vec = _mm256_loadu_ps(lhs_temp);
-                __m256 rhs_vec = _mm256_loadu_ps(rhs_temp);
-                __m256 res_vec = _mm256_sub_ps(lhs_vec, rhs_vec);
-                _mm256_storeu_ps(lhs_temp, res_vec);
-
-                for (int n = 0; n < 8; ++n) {
-                    result(i, j + n) = lhs_temp[n];
+    
+    if constexpr (detail::is_matrix_v<ResultType>) {
+        if (lhs.get_rows() > 0 && lhs.get_cols() > 0) {
+            int inner_rows = 1, inner_cols = 1;
+            
+            if constexpr (detail::is_matrix_v<T>) {
+                if (lhs(0, 0).get_rows() > 0) {
+                    inner_rows = lhs(0, 0).get_rows();
+                    inner_cols = lhs(0, 0).get_cols();
+                }
+            } else if constexpr (detail::is_matrix_v<U>) {
+                if (rhs(0, 0).get_rows() > 0) {
+                    inner_rows = rhs(0, 0).get_rows();
+                    inner_cols = rhs(0, 0).get_cols();
                 }
             }
-            for (; j < lhs.get_cols(); ++j) {
+            
+            for (int i = 0; i < result.get_rows(); ++i) {
+                for (int j = 0; j < result.get_cols(); ++j) {
+                    result(i, j) = ResultType::Zero(inner_rows, inner_cols);
+                }
+            }
+        }
+    }
+    
+    #ifdef __AVX__
+        if constexpr (std::is_same_v<T, U> && detail::is_avx_double<T>) {
+            for (int i = 0; i < lhs.get_rows(); ++i) {
+                int j = 0;
+                for (; j + 4 <= lhs.get_cols(); j += 4) {
+                    double lhs_temp[4] = {lhs(i, j), lhs(i, j + 1), lhs(i, j + 2), lhs(i, j + 3)};
+                    double rhs_temp[4] = {rhs(i, j), rhs(i, j + 1), rhs(i, j + 2), rhs(i, j + 3)};
+                    
+                    __m256d lhs_vec = _mm256_loadu_pd(lhs_temp);
+                    __m256d rhs_vec = _mm256_loadu_pd(rhs_temp);
+                    __m256d res_vec = _mm256_sub_pd(lhs_vec, rhs_vec);
+                    _mm256_storeu_pd(lhs_temp, res_vec);
+                    
+                    result(i, j) = lhs_temp[0];
+                    result(i, j + 1) = lhs_temp[1];
+                    result(i, j + 2) = lhs_temp[2];
+                    result(i, j + 3) = lhs_temp[3];
+                }
+                for (; j < lhs.get_cols(); ++j) {
+                    result(i, j) = lhs(i, j) - rhs(i, j);
+                }
+            }
+        } else if constexpr (std::is_same_v<T, U> && detail::is_avx_float<T>) {
+            for (int i = 0; i < lhs.get_rows(); ++i) {
+                int j = 0;
+                for (; j + 8 <= lhs.get_cols(); j += 8) {
+                    float lhs_temp[8] = {lhs(i, j), lhs(i, j + 1), lhs(i, j + 2), lhs(i, j + 3),
+                                        lhs(i, j + 4), lhs(i, j + 5), lhs(i, j + 6), lhs(i, j + 7)};
+                    float rhs_temp[8] = {rhs(i, j), rhs(i, j + 1), rhs(i, j + 2), rhs(i, j + 3),
+                                        rhs(i, j + 4), rhs(i, j + 5), rhs(i, j + 6), rhs(i, j + 7)};
+                    
+                    __m256 lhs_vec = _mm256_loadu_ps(lhs_temp);
+                    __m256 rhs_vec = _mm256_loadu_ps(rhs_temp);
+                    __m256 res_vec = _mm256_sub_ps(lhs_vec, rhs_vec);
+                    _mm256_storeu_ps(lhs_temp, res_vec);
+                    
+                    for (int n = 0; n < 8; ++n) {
+                        result(i, j + n) = lhs_temp[n];
+                    }
+                }
+                for (; j < lhs.get_cols(); ++j) {
+                    result(i, j) = lhs(i, j) - rhs(i, j);
+                }
+            }
+        } else {
+            for (int i = 0; i < lhs.get_rows(); ++i) {
+                for (int j = 0; j < lhs.get_cols(); ++j) {
+                    result(i, j) = lhs(i, j) - rhs(i, j);
+                }
+            }
+        }
+    #else
+        for (int i = 0; i < lhs.get_rows(); ++i) {
+            for (int j = 0; j < lhs.get_cols(); ++j) {
                 result(i, j) = lhs(i, j) - rhs(i, j);
             }
         }
-        return result;
-    }
-#endif
+    #endif
+    
+    return result;
+}
 
-    return perform_elementwise(lhs, rhs, [](auto a, auto b) {
-        using ResultType = decltype(a - b);
-        return static_cast<ResultType>(a) - static_cast<ResultType>(b);
-    });
+template<typename T, typename U>
+auto operator*(const Matrix<T>& A, const Matrix<U>& B) {
+    if (A.get_cols() != B.get_rows()) {
+        throw std::invalid_argument("Matrix dimensions don't match for multiplication");
+    }
+    
+    using ResultType = detail::result_type_mul_t<T, U>;
+    
+    Matrix<ResultType> result(A.get_rows(), B.get_cols());
+    
+    if constexpr (detail::is_matrix_v<ResultType>) {
+        if (A.get_rows() > 0 && A.get_cols() > 0 && B.get_cols() > 0) {
+            int inner_rows = 1, inner_cols = 1;
+            
+            if constexpr (detail::is_matrix_v<T>) {
+                if (A(0, 0).get_rows() > 0) {
+                    inner_rows = A(0, 0).get_rows();
+                    inner_cols = A(0, 0).get_cols();
+                }
+            } else if constexpr (detail::is_matrix_v<U>) {
+                if (B(0, 0).get_rows() > 0) {
+                    inner_rows = B(0, 0).get_rows();
+                    inner_cols = B(0, 0).get_cols();
+                }
+            }
+            
+            for (int i = 0; i < result.get_rows(); ++i) {
+                for (int j = 0; j < result.get_cols(); ++j) {
+                    result(i, j) = ResultType::Zero(inner_rows, inner_cols);
+                }
+            }
+        }
+    }
+    
+    #ifdef __AVX__
+        if constexpr (std::is_same_v<T, U> && detail::is_avx_double<T>) {
+            for (int i = 0; i < A.get_rows(); ++i) {
+                for (int k = 0; k < A.get_cols(); ++k) {
+                    double a_ik = A(i, k);
+                    __m256d a_vec = _mm256_set1_pd(a_ik);
+                    int j = 0;
+                    for (; j + 4 <= B.get_cols(); j += 4) {
+                        double b_temp[4] = {B(k, j), B(k, j + 1), B(k, j + 2), B(k, j + 3)};
+                        double c_temp[4] = {result(i, j), result(i, j + 1), result(i, j + 2), result(i, j + 3)};
+                        
+                        __m256d b_vec = _mm256_loadu_pd(b_temp);
+                        __m256d c_vec = _mm256_loadu_pd(c_temp);
+                        c_vec = _mm256_add_pd(c_vec, _mm256_mul_pd(a_vec, b_vec));
+                        _mm256_storeu_pd(c_temp, c_vec);
+                        
+                        result(i, j) = c_temp[0];
+                        result(i, j + 1) = c_temp[1];
+                        result(i, j + 2) = c_temp[2];
+                        result(i, j + 3) = c_temp[3];
+                    }
+                    for (; j < B.get_cols(); ++j) {
+                        result(i, j) += A(i, k) * B(k, j);
+                    }
+                }
+            }
+        } else if constexpr (std::is_same_v<T, U> && detail::is_avx_float<T>) {
+            for (int i = 0; i < A.get_rows(); ++i) {
+                for (int k = 0; k < A.get_cols(); ++k) {
+                    float a_ik = A(i, k);
+                    __m256 a_vec = _mm256_set1_ps(a_ik);
+                    int j = 0;
+                    for (; j + 8 <= B.get_cols(); j += 8) {
+                        float b_temp[8] = {B(k, j), B(k, j + 1), B(k, j + 2), B(k, j + 3), 
+                                          B(k, j + 4), B(k, j + 5), B(k, j + 6), B(k, j + 7)};
+                        float c_temp[8] = {result(i, j), result(i, j + 1), result(i, j + 2), result(i, j + 3),
+                                          result(i, j + 4), result(i, j + 5), result(i, j + 6), result(i, j + 7)};
+                        
+                        __m256 b_vec = _mm256_loadu_ps(b_temp);
+                        __m256 c_vec = _mm256_loadu_ps(c_temp);
+                        c_vec = _mm256_add_ps(c_vec, _mm256_mul_ps(a_vec, b_vec));
+                        _mm256_storeu_ps(c_temp, c_vec);
+                        
+                        for (int n = 0; n < 8; ++n) {
+                            result(i, j + n) = c_temp[n];
+                        }
+                    }
+                    for (; j < B.get_cols(); ++j) {
+                        result(i, j) += A(i, k) * B(k, j);
+                    }
+                }
+            }
+        } else {
+            for (int i = 0; i < A.get_rows(); ++i) {
+                for (int k = 0; k < A.get_cols(); ++k) {
+                    T a_ik = A(i, k);
+                    for (int j = 0; j < B.get_cols(); ++j) {
+                        result(i, j) += a_ik * B(k, j);
+                    }
+                }
+            }
+        }
+    #else
+        for (int i = 0; i < A.get_rows(); ++i) {
+            for (int k = 0; k < A.get_cols(); ++k) {
+                T a_ik = A(i, k);
+                for (int j = 0; j < B.get_cols(); ++j) {
+                    result(i, j) += a_ik * B(k, j);
+                }
+            }
+        }
+    #endif
+    
+    return result;
 }
 
 template<typename T, typename U>
