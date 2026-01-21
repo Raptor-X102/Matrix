@@ -29,10 +29,10 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx")
 
 if(BUILD_CLASSIC_TEST)
     add_executable(matrix_classic_test_double ${SRC_DIR}/main_double.cpp)
-    target_compile_definitions(matrix_classic_test_double PRIVATE MATRIX_IMPL_CLASSIC=1 USE_DOUBLE=1)
+    target_compile_definitions(matrix_classic_test_double PRIVATE USE_DOUBLE=1)
 
     add_executable(matrix_classic_test_int ${SRC_DIR}/main_int.cpp)
-    target_compile_definitions(matrix_classic_test_int PRIVATE MATRIX_IMPL_CLASSIC=1 USE_INT=1)
+    target_compile_definitions(matrix_classic_test_int PRIVATE USE_INT=1)
 
     if(ENABLE_TIME_MEASURE)
         target_compile_definitions(matrix_classic_test_double PRIVATE TIME_MEASURE=1)
@@ -109,6 +109,7 @@ if(CLANG_FORMAT)
             "${SRC_DIR}/*.c"
             "${HEADER_DIR}/*.h"
             "${HEADER_DIR}/*.hpp"
+            "${HEADER_DIR}/*.ipp"
         )
         if(ALL_SOURCE_FILES)
             add_custom_target(format
