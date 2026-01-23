@@ -143,4 +143,19 @@ namespace detail {
         using type = float;
     };
 
+    template<typename T, typename = void>
+    struct has_sqrt : std::false_type {};
+
+    template<typename T>
+    struct has_sqrt<T, std::void_t<decltype(sqrt(std::declval<T>()))>> : std::true_type {};
+
+    template<typename T> constexpr bool has_sqrt_v = has_sqrt<T>::value;
+
+    template<typename T, typename = void>
+    struct has_acos : std::false_type {};
+
+    template<typename T>
+    struct has_acos<T, std::void_t<decltype(acos(std::declval<T>()))>> : std::true_type {};
+
+    template<typename T> constexpr bool has_acos_v = has_acos<T>::value;
 } // namespace detail

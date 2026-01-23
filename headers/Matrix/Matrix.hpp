@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <limits>
 #include <cmath>
+#include <complex>
 
 #ifdef __GNUC__
 #include <x86intrin.h>
@@ -161,6 +162,9 @@ public:
     void detailed_print() const;
 
     Matrix<T> transpose() const;
+    Matrix<T>& transpose_in_place();
+    Matrix<T> transpose_deep() const;
+    Matrix<T>& transpose_deep_in_place();    
 
     template<typename U>
     friend std::ostream &operator<<(std::ostream &os, const Matrix<U> &matrix);
@@ -196,13 +200,8 @@ private:
     template<typename U = T>
     std::optional<T> det_numeric_impl(int row, int col, int size) const;
 
-    template<typename U = T> static U identity_element(int rows, int cols);
-
-    template<typename U = T> static U zero_element(int rows, int cols);
-
     static int generate_random_int_(int min = 1, int max = 100);
     static double generate_random_double_(double min = 0.0, double max = 1.0);
-    static T generate_random(T min_val = {}, T max_val = {});
 
     template<typename U> static double compute_block_norm(const U &block);
 
@@ -210,23 +209,33 @@ private:
 
     enum class TransposeAlgorithm { SIMPLE, BLOCKED, SIMD_BLOCKED };
 
-    void transpose_impl(Matrix<T>& result) const;
-
-    void transpose_simple(Matrix<T>& result) const;
-    void transpose_blocked(Matrix<T>& result) const;
-    void transpose_blocked_impl(Matrix<T>& result, int block_size) const;
+    TransposeAlgorithm select_transpose_algorithm() const;
+    bool is_small_matrix() const;
+    bool should_use_blocking() const;
+    int compute_optimal_block_size() const;
+    void transpose_impl(Matrix<T> &result) const;
+    void transpose_simple(Matrix<T> &result) const;
+    void transpose_blocked(Matrix<T> &result) const;
+    void transpose_blocked_impl(Matrix<T> &result, int block_size) const;
+    Matrix<T> transpose_deep_impl() const;
 
     template<typename U, int SIMD_WIDTH>
-    void transpose_simd_blocked(Matrix<U>& result) const;
-    void transpose_block_simd_float(Matrix<float>& result, int start_i, int start_j,
-                                   int rows_in_block, int cols_in_block) const;
-    void transpose_block_simd_double(Matrix<double>& result, int start_i, int start_j,
-                                    int rows_in_block, int cols_in_block) const;
+    void transpose_simd_blocked(Matrix<U> &result) const;
+    void transpose_block_simd_float(Matrix<float> &result,
+                                    int start_i,
+                                    int start_j,
+                                    int rows_in_block,
+                                    int cols_in_block) const;
+    void transpose_block_simd_double(Matrix<double> &result,
+                                     int start_i,
+                                     int start_j,
+                                     int rows_in_block,
+                                     int cols_in_block) const;
 
-    TransposeAlgorithm select_transpose_algorithm() const;
-    int compute_optimal_block_size() const;
-    bool should_use_blocking() const;
-    bool is_small_matrix() const;
+protected:
+    template<typename U = T> static U identity_element(int rows, int cols);
+    template<typename U = T> static U zero_element(int rows, int cols);
+    static T generate_random(T min_val, T max_val);
 };
 
 template<typename T, typename U>

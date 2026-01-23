@@ -12,6 +12,22 @@ Matrix<T> Matrix<T>::transpose() const {
 }
 
 template<typename T>
+Matrix<T>& Matrix<T>::transpose_in_place() {
+    if (rows_ != cols_) {
+        throw std::invalid_argument("Cannot transpose non-square matrix in place");
+    }
+
+    for (int i = 0; i < rows_; ++i) {
+        for (int j = i + 1; j < cols_; ++j) {
+            std::swap(matrix_[i][j], matrix_[j][i]);
+        }
+    }
+
+    determinant_.reset();
+    return *this;
+}
+
+template<typename T>
 void Matrix<T>::transpose_impl(Matrix<T>& result) const {
     TransposeAlgorithm algorithm = select_transpose_algorithm();
 
@@ -324,4 +340,59 @@ void Matrix<T>::transpose_block_simd_double(Matrix<double>& result,
             }
         }
     }
+}
+
+template<typename T>
+Matrix<T> Matrix<T>::transpose_deep() const {
+    return transpose_deep_impl();
+}
+
+template<typename T>
+Matrix<T> Matrix<T>::transpose_deep_impl() const {
+    if constexpr (detail::is_matrix_v<T>) {
+        Matrix<T> result(cols_, rows_);
+
+        for (int i = 0; i < rows_; ++i) {
+            for (int j = 0; j < cols_; ++j) {
+                result.matrix_[j][i] = matrix_[i][j].transpose_deep();
+            }
+        }
+
+        if (determinant_) {
+            result.determinant_ = determinant_->transpose_deep();
+        }
+
+        return result;
+    } else {
+        return transpose();
+    }
+}
+
+template<typename T>
+Matrix<T>& Matrix<T>::transpose_deep_in_place() {
+    if (rows_ != cols_) {
+        throw std::invalid_argument("Cannot transpose non-square matrix in place");
+    }
+
+    if constexpr (detail::is_matrix_v<T>) {
+        for (int i = 0; i < rows_; ++i) {
+            for (int j = i + 1; j < cols_; ++j) {
+                std::swap(matrix_[i][j], matrix_[j][i]);
+            }
+        }
+
+        for (int i = 0; i < rows_; ++i) {
+            for (int j = 0; j < cols_; ++j) {
+                matrix_[i][j].transpose_deep_in_place();
+            }
+        }
+
+        if (determinant_) {
+            determinant_->transpose_deep_in_place();
+        }
+    } else {
+        return transpose_in_place();
+    }
+
+    return *this;
 }

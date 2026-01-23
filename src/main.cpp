@@ -1,5 +1,5 @@
-#include "../headers/Matrix.hpp"
-#include "../headers/Timer.hpp"
+#include "Matrix.hpp"
+#include "Timer.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <string>

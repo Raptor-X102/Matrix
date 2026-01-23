@@ -59,6 +59,36 @@ template<typename T> T Matrix<T>::generate_random(T min_val, T max_val) {
             actual_max = 100;
         }
         return generate_random_int_(actual_min, actual_max);
+    } else if constexpr (std::is_same_v<T, std::complex<double>>) {
+        double real_min = 0.0, real_max = 1.0;
+        double imag_min = 0.0, imag_max = 1.0;
+        
+        if (min_val != std::complex<double>{} || max_val != std::complex<double>{}) {
+            real_min = min_val.real();
+            real_max = max_val.real();
+            imag_min = min_val.imag();
+            imag_max = max_val.imag();
+        }
+        
+        return std::complex<double>(
+            generate_random_double_(real_min, real_max),
+            generate_random_double_(imag_min, imag_max)
+        );
+    } else if constexpr (std::is_same_v<T, std::complex<float>>) {
+        float real_min = 0.0f, real_max = 1.0f;
+        float imag_min = 0.0f, imag_max = 1.0f;
+        
+        if (min_val != std::complex<float>{} || max_val != std::complex<float>{}) {
+            real_min = min_val.real();
+            real_max = max_val.real();
+            imag_min = min_val.imag();
+            imag_max = max_val.imag();
+        }
+        
+        return std::complex<float>(
+            static_cast<float>(generate_random_double_(real_min, real_max)),
+            static_cast<float>(generate_random_double_(imag_min, imag_max))
+        );
     } else if constexpr (std::is_floating_point_v<T>) {
         double actual_min = static_cast<double>(min_val);
         double actual_max = static_cast<double>(max_val);
