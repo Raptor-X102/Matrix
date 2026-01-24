@@ -152,21 +152,3 @@ std::optional<T> Matrix<T>::det_numeric_impl(int row, int col, int size) const {
     determinant_ = determinant;
     return determinant_;
 }
-
-template<typename T>
-template<typename U>
-U Matrix<T>::identity_element(int rows, int cols) {
-    if constexpr (detail::is_matrix_v<U>) {
-        return U::Identity(rows, cols);
-    } else {
-        return U{1};
-    }
-}
-
-template<typename T> template<typename U> U Matrix<T>::zero_element(int rows, int cols) {
-    if constexpr (detail::is_matrix_v<U>) {
-        return U::Zero(rows, cols);
-    } else {
-        return U{0};
-    }
-}

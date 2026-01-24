@@ -1,5 +1,4 @@
-template<typename T>
-Matrix<T> Matrix<T>::transpose() const {
+template<typename T> Matrix<T> Matrix<T>::transpose() const {
     if (rows_ == 0 || cols_ == 0) {
         return Matrix<T>(cols_, rows_);
     }
@@ -11,8 +10,7 @@ Matrix<T> Matrix<T>::transpose() const {
     return result;
 }
 
-template<typename T>
-Matrix<T>& Matrix<T>::transpose_in_place() {
+template<typename T> Matrix<T> &Matrix<T>::transpose_in_place() {
     if (rows_ != cols_) {
         throw std::invalid_argument("Cannot transpose non-square matrix in place");
     }
@@ -27,29 +25,28 @@ Matrix<T>& Matrix<T>::transpose_in_place() {
     return *this;
 }
 
-template<typename T>
-void Matrix<T>::transpose_impl(Matrix<T>& result) const {
+template<typename T> void Matrix<T>::transpose_impl(Matrix<T> &result) const {
     TransposeAlgorithm algorithm = select_transpose_algorithm();
 
     switch (algorithm) {
 #ifdef __AVX__
-        case TransposeAlgorithm::SIMD_BLOCKED:
-            if constexpr (std::is_same_v<T, float>) {
-                transpose_simd_blocked<float, 8>(result);
-            } else if constexpr (std::is_same_v<T, double>) {
-                transpose_simd_blocked<double, 4>(result);
-            } else {
-                transpose_blocked(result);
-            }
-            break;
-#endif
-        case TransposeAlgorithm::BLOCKED:
+    case TransposeAlgorithm::SIMD_BLOCKED:
+        if constexpr (std::is_same_v<T, float>) {
+            transpose_simd_blocked<float, 8>(result);
+        } else if constexpr (std::is_same_v<T, double>) {
+            transpose_simd_blocked<double, 4>(result);
+        } else {
             transpose_blocked(result);
-            break;
-        case TransposeAlgorithm::SIMPLE:
-        default:
-            transpose_simple(result);
-            break;
+        }
+        break;
+#endif
+    case TransposeAlgorithm::BLOCKED:
+        transpose_blocked(result);
+        break;
+    case TransposeAlgorithm::SIMPLE:
+    default:
+        transpose_simple(result);
+        break;
     }
 }
 
@@ -74,57 +71,53 @@ typename Matrix<T>::TransposeAlgorithm Matrix<T>::select_transpose_algorithm() c
     return TransposeAlgorithm::SIMPLE;
 }
 
-template<typename T>
-bool Matrix<T>::is_small_matrix() const {
+template<typename T> bool Matrix<T>::is_small_matrix() const {
     return (rows_ * cols_) < 64;
 }
 
-template<typename T>
-bool Matrix<T>::should_use_blocking() const {
+template<typename T> bool Matrix<T>::should_use_blocking() const {
     if (rows_ < 32 && cols_ < 32) {
         return false;
     }
-    
+
     if constexpr (!std::is_trivially_copyable_v<T>) {
         if constexpr (!std::is_arithmetic_v<T>) {
             return false;
         }
     }
-    
+
     if constexpr (detail::is_matrix_v<T>) {
         return false;
     }
-    
+
     const int optimal_block = compute_optimal_block_size();
     return optimal_block > 2;
 }
 
-template<typename T>
-int Matrix<T>::compute_optimal_block_size() const {
+template<typename T> int Matrix<T>::compute_optimal_block_size() const {
     constexpr int CACHE_LINE_SIZE = 64;
-    
+
     if constexpr (sizeof(T) == 0) {
-        return 8; 
+        return 8;
     }
-    
+
     constexpr size_t type_size = sizeof(T);
-    
+
     if (type_size >= CACHE_LINE_SIZE) {
         return 1;
     }
-    
+
     int block = static_cast<int>(CACHE_LINE_SIZE / type_size);
-    
-    block = std::max(block, 4);   
-    block = std::min(block, 64); 
+
+    block = std::max(block, 4);
+    block = std::min(block, 64);
     block = std::min(block, rows_);
     block = std::min(block, cols_);
-    
+
     return block;
 }
 
-template<typename T>
-void Matrix<T>::transpose_simple(Matrix<T>& result) const {
+template<typename T> void Matrix<T>::transpose_simple(Matrix<T> &result) const {
     for (int i = 0; i < rows_; ++i) {
         for (int j = 0; j < cols_; ++j) {
             result.matrix_[j][i] = matrix_[i][j];
@@ -132,8 +125,7 @@ void Matrix<T>::transpose_simple(Matrix<T>& result) const {
     }
 }
 
-template<typename T>
-void Matrix<T>::transpose_blocked(Matrix<T>& result) const {
+template<typename T> void Matrix<T>::transpose_blocked(Matrix<T> &result) const {
     const int block_size = compute_optimal_block_size();
 
     if (block_size <= 2) {
@@ -145,7 +137,7 @@ void Matrix<T>::transpose_blocked(Matrix<T>& result) const {
 }
 
 template<typename T>
-void Matrix<T>::transpose_blocked_impl(Matrix<T>& result, int block_size) const {
+void Matrix<T>::transpose_blocked_impl(Matrix<T> &result, int block_size) const {
     for (int outer_i = 0; outer_i < rows_; outer_i += block_size) {
         for (int outer_j = 0; outer_j < cols_; outer_j += block_size) {
             const int i_end = std::min(outer_i + block_size, rows_);
@@ -160,8 +152,7 @@ void Matrix<T>::transpose_blocked_impl(Matrix<T>& result, int block_size) const 
     }
 }
 
-template<>
-void Matrix<int>::transpose_simple(Matrix<int>& result) const {
+template<> void Matrix<int>::transpose_simple(Matrix<int> &result) const {
     if (rows_ == 1) {
         for (int j = 0; j < cols_; ++j) {
             result.matrix_[j][0] = matrix_[0][j];
@@ -213,7 +204,7 @@ void Matrix<int>::transpose_simple(Matrix<int>& result) const {
 
 template<typename T>
 template<typename U, int SIMD_WIDTH>
-void Matrix<T>::transpose_simd_blocked(Matrix<U>& result) const {
+void Matrix<T>::transpose_simd_blocked(Matrix<U> &result) const {
     constexpr int BLOCK_SIZE = 64;
     constexpr int SIMD_LANES = SIMD_WIDTH;
 
@@ -228,9 +219,17 @@ void Matrix<T>::transpose_simd_blocked(Matrix<U>& result) const {
                     const int j_remaining = std::min(j_end - j, SIMD_LANES);
 
                     if constexpr (std::is_same_v<U, float>) {
-                        transpose_block_simd_float(result, i, j, i_remaining, j_remaining);
+                        transpose_block_simd_float(result,
+                                                   i,
+                                                   j,
+                                                   i_remaining,
+                                                   j_remaining);
                     } else if constexpr (std::is_same_v<U, double>) {
-                        transpose_block_simd_double(result, i, j, i_remaining, j_remaining);
+                        transpose_block_simd_double(result,
+                                                    i,
+                                                    j,
+                                                    i_remaining,
+                                                    j_remaining);
                     }
                 }
             }
@@ -239,9 +238,11 @@ void Matrix<T>::transpose_simd_blocked(Matrix<U>& result) const {
 }
 
 template<typename T>
-void Matrix<T>::transpose_block_simd_float(Matrix<float>& result,
-                                           int start_i, int start_j,
-                                           int rows_in_block, int cols_in_block) const {
+void Matrix<T>::transpose_block_simd_float(Matrix<float> &result,
+                                           int start_i,
+                                           int start_j,
+                                           int rows_in_block,
+                                           int cols_in_block) const {
     __m256 rows[8];
     for (int i = 0; i < rows_in_block; ++i) {
         float temp[8] = {0};
@@ -291,16 +292,18 @@ void Matrix<T>::transpose_block_simd_float(Matrix<float>& result,
         for (int i = 0; i < rows_in_block; ++i) {
             for (int j = 0; j < cols_in_block; ++j) {
                 result.matrix_[start_j + j][start_i + i] =
-                    reinterpret_cast<float*>(&rows[i])[j];
+                    reinterpret_cast<float *>(&rows[i])[j];
             }
         }
     }
 }
 
 template<typename T>
-void Matrix<T>::transpose_block_simd_double(Matrix<double>& result,
-                                            int start_i, int start_j,
-                                            int rows_in_block, int cols_in_block) const {
+void Matrix<T>::transpose_block_simd_double(Matrix<double> &result,
+                                            int start_i,
+                                            int start_j,
+                                            int rows_in_block,
+                                            int cols_in_block) const {
     __m256d rows[4];
     for (int i = 0; i < rows_in_block; ++i) {
         double temp[4] = {0};
@@ -336,19 +339,17 @@ void Matrix<T>::transpose_block_simd_double(Matrix<double>& result,
         for (int i = 0; i < rows_in_block; ++i) {
             for (int j = 0; j < cols_in_block; ++j) {
                 result.matrix_[start_j + j][start_i + i] =
-                    reinterpret_cast<double*>(&rows[i])[j];
+                    reinterpret_cast<double *>(&rows[i])[j];
             }
         }
     }
 }
 
-template<typename T>
-Matrix<T> Matrix<T>::transpose_deep() const {
+template<typename T> Matrix<T> Matrix<T>::transpose_deep() const {
     return transpose_deep_impl();
 }
 
-template<typename T>
-Matrix<T> Matrix<T>::transpose_deep_impl() const {
+template<typename T> Matrix<T> Matrix<T>::transpose_deep_impl() const {
     if constexpr (detail::is_matrix_v<T>) {
         Matrix<T> result(cols_, rows_);
 
@@ -368,8 +369,7 @@ Matrix<T> Matrix<T>::transpose_deep_impl() const {
     }
 }
 
-template<typename T>
-Matrix<T>& Matrix<T>::transpose_deep_in_place() {
+template<typename T> Matrix<T> &Matrix<T>::transpose_deep_in_place() {
     if (rows_ != cols_) {
         throw std::invalid_argument("Cannot transpose non-square matrix in place");
     }

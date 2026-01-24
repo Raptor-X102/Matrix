@@ -1,22 +1,20 @@
-template<typename T>
-T Vector<T>::dot(const Vector<T> &other) const {
+template<typename T> T Vector<T>::dot(const Vector<T> &other) const {
     if (size() != other.size()) {
         throw std::invalid_argument("Vectors must have same size for dot product");
     }
 
-    #if defined(__AVX__) || defined(__AVX2__)
+#if defined(__AVX__) || defined(__AVX2__)
     return avx_dot_impl(other);
-    #else
+#else
     T result = this->zero_element(1, 1);
     for (int i = 0; i < size(); ++i) {
-        result += (*this)(i) * other(i);
+        result += (*this)(i)*other(i);
     }
     return result;
-    #endif
+#endif
 }
 
-template<typename T>
-Vector<T> Vector<T>::cross(const Vector<T> &other) const {
+template<typename T> Vector<T> Vector<T>::cross(const Vector<T> &other) const {
     if (size() != 3 || other.size() != 3) {
         throw std::invalid_argument("Cross product is only defined for 3D vectors");
     }
@@ -28,14 +26,13 @@ Vector<T> Vector<T>::cross(const Vector<T> &other) const {
     return result;
 }
 
-template<typename T>
-T Vector<T>::norm() const {
+template<typename T> T Vector<T>::norm() const {
     T dot_val = this->dot(*this);
-    
+
     if constexpr (std::is_floating_point_v<T>) {
         return std::sqrt(dot_val);
-    } else if constexpr (std::is_same_v<T, std::complex<float>> || 
-                         std::is_same_v<T, std::complex<double>>) {
+    } else if constexpr (std::is_same_v<T, std::complex<float>>
+                         || std::is_same_v<T, std::complex<double>>) {
         using RealType = typename T::value_type;
         RealType abs_val = std::abs(dot_val);
         return std::sqrt(abs_val);
@@ -46,36 +43,36 @@ T Vector<T>::norm() const {
     }
 }
 
-template<typename T>
-T Vector<T>::angle(const Vector<T> &other) const {
+template<typename T> T Vector<T>::angle(const Vector<T> &other) const {
     if constexpr (std::is_floating_point_v<T>) {
         T cos_angle = this->dot(other) / (this->norm() * other.norm());
         cos_angle = std::max(T{-1}, std::min(T{1}, cos_angle));
         return std::acos(cos_angle);
-    } else if constexpr (std::is_same_v<T, std::complex<float>> || 
-                         std::is_same_v<T, std::complex<double>>) {
+    } else if constexpr (std::is_same_v<T, std::complex<float>>
+                         || std::is_same_v<T, std::complex<double>>) {
         T dot_val = this->dot(other);
-        
+
         T norm1 = this->norm();
         T norm2 = other.norm();
-        
+
         if (norm1 == T{} || norm2 == T{}) {
             throw std::runtime_error("Cannot compute angle with zero vector");
         }
-        
+
         using RealType = typename T::value_type;
         RealType abs_dot = std::abs(dot_val);
         RealType product = std::abs(norm1) * std::abs(norm2);
-        
+
         if (product == RealType{}) {
             throw std::runtime_error("Cannot compute angle with zero norm");
         }
-        
+
         RealType cos_angle = abs_dot / product;
         cos_angle = std::max(RealType{-1}, std::min(RealType{1}, cos_angle));
         return std::acos(cos_angle);
     } else {
-        throw std::runtime_error("Angle computation requires floating point or complex type");
+        throw std::runtime_error(
+            "Angle computation requires floating point or complex type");
     }
 }
 
@@ -83,8 +80,8 @@ template<typename T>
 bool Vector<T>::is_orthogonal(const Vector<T> &other, T tolerance) const {
     if constexpr (std::is_arithmetic_v<T>) {
         return std::abs(this->dot(other)) < std::abs(tolerance);
-    } else if constexpr (std::is_same_v<T, std::complex<float>> || 
-                         std::is_same_v<T, std::complex<double>>) {
+    } else if constexpr (std::is_same_v<T, std::complex<float>>
+                         || std::is_same_v<T, std::complex<double>>) {
         T dot_val = this->dot(other);
         using RealType = typename T::value_type;
         return std::abs(dot_val) < std::abs(tolerance);
@@ -98,9 +95,9 @@ template<typename T>
 bool Vector<T>::is_collinear(const Vector<T> &other, T tolerance) const {
     if constexpr (std::is_arithmetic_v<T>) {
         T zero_val = zero_element(1, 1);
-        
-        if (std::abs(this->norm()) < std::abs(tolerance) || 
-            std::abs(other.norm()) < std::abs(tolerance)) {
+
+        if (std::abs(this->norm()) < std::abs(tolerance)
+            || std::abs(other.norm()) < std::abs(tolerance)) {
             return true;
         }
 
@@ -110,13 +107,13 @@ bool Vector<T>::is_collinear(const Vector<T> &other, T tolerance) const {
 
         T cos_angle = std::abs(this->dot(other)) / (this->norm() * other.norm());
         return std::abs(cos_angle - identity_element(1, 1)) < tolerance;
-    } else if constexpr (std::is_same_v<T, std::complex<float>> || 
-                         std::is_same_v<T, std::complex<double>>) {
+    } else if constexpr (std::is_same_v<T, std::complex<float>>
+                         || std::is_same_v<T, std::complex<double>>) {
         using RealType = typename T::value_type;
-        
+
         RealType norm1 = std::abs(this->norm());
         RealType norm2 = std::abs(other.norm());
-        
+
         if (norm1 < std::abs(tolerance) || norm2 < std::abs(tolerance)) {
             return true;
         }
@@ -132,9 +129,9 @@ bool Vector<T>::is_collinear(const Vector<T> &other, T tolerance) const {
         return std::abs(cos_angle - RealType{1}) < std::abs(tolerance);
     } else {
         T zero_val = zero_element(1, 1);
-        
-        if (this->is_equal(this->norm(), zero_val) || 
-            this->is_equal(other.norm(), zero_val)) {
+
+        if (this->is_equal(this->norm(), zero_val)
+            || this->is_equal(other.norm(), zero_val)) {
             return true;
         }
 
@@ -147,11 +144,11 @@ bool Vector<T>::is_collinear(const Vector<T> &other, T tolerance) const {
     }
 }
 
-template<typename T>
-T Vector<T>::norm_squared() const { return this->dot(*this); }
+template<typename T> T Vector<T>::norm_squared() const {
+    return this->dot(*this);
+}
 
-template<typename T>
-Vector<T> Vector<T>::normalized() const {
+template<typename T> Vector<T> Vector<T>::normalized() const {
     T n = norm();
     if (this->is_zero(n)) {
         throw std::runtime_error("Cannot normalize zero vector");
@@ -159,8 +156,7 @@ Vector<T> Vector<T>::normalized() const {
     return (*this) / n;
 }
 
-template<typename T>
-void Vector<T>::normalize() {
+template<typename T> void Vector<T>::normalize() {
     T n = norm();
     if (this->is_zero(n)) {
         throw std::runtime_error("Cannot normalize zero vector");
@@ -168,20 +164,17 @@ void Vector<T>::normalize() {
     (*this) /= n;
 }
 
-template<typename T>
-Vector<T> Vector<T>::projection(const Vector<T> &other) const {
+template<typename T> Vector<T> Vector<T>::projection(const Vector<T> &other) const {
     T scalar = this->dot(other) / other.norm_squared();
     return other * scalar;
 }
 
-template<typename T>
-Vector<T> Vector<T>::orthogonal(const Vector<T> &other) const {
+template<typename T> Vector<T> Vector<T>::orthogonal(const Vector<T> &other) const {
     return (*this) - this->projection(other);
 }
 
 #if defined(__AVX__) || defined(__AVX2__)
-template<>
-float Vector<float>::avx_dot_impl_float(const Vector<float> &other) const {
+template<> float Vector<float>::avx_dot_impl_float(const Vector<float> &other) const {
     __m256 sum = _mm256_setzero_ps();
     int i = 0;
     for (; i + 7 < size(); i += 8) {
@@ -191,10 +184,10 @@ float Vector<float>::avx_dot_impl_float(const Vector<float> &other) const {
     }
     alignas(32) float temp[8];
     _mm256_store_ps(temp, sum);
-    float result = temp[0] + temp[1] + temp[2] + temp[3] + 
-                  temp[4] + temp[5] + temp[6] + temp[7];
+    float result =
+        temp[0] + temp[1] + temp[2] + temp[3] + temp[4] + temp[5] + temp[6] + temp[7];
     for (; i < size(); ++i) {
-        result += (*this)(i) * other(i);
+        result += (*this)(i)*other(i);
     }
     return result;
 }
@@ -212,25 +205,24 @@ double Vector<double>::avx_dot_impl_double(const Vector<double> &other) const {
     _mm256_store_pd(temp, sum);
     double result = temp[0] + temp[1] + temp[2] + temp[3];
     for (; i < size(); ++i) {
-        result += (*this)(i) * other(i);
+        result += (*this)(i)*other(i);
     }
     return result;
 }
 #endif
 
-template<typename T>
-T Vector<T>::avx_dot_impl(const Vector<T> &other) const {
-    #if defined(__AVX__) || defined(__AVX2__)
+template<typename T> T Vector<T>::avx_dot_impl(const Vector<T> &other) const {
+#if defined(__AVX__) || defined(__AVX2__)
     if constexpr (std::is_same_v<T, float>) {
         return avx_dot_impl_float(other);
     } else if constexpr (std::is_same_v<T, double>) {
         return avx_dot_impl_double(other);
     } else
-    #endif
+#endif
     {
         T result = this->zero_element(1, 1);
         for (int i = 0; i < size(); ++i) {
-            result += (*this)(i) * other(i);
+            result += (*this)(i)*other(i);
         }
         return result;
     }

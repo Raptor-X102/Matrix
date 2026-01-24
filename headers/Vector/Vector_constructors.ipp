@@ -30,8 +30,7 @@ Vector<T>::Vector(const Matrix<T> &matrix)
     }
 }
 
-template<typename T>
-Vector<T> Vector<T>::from_row(const Matrix<T> &matrix) {
+template<typename T> Vector<T> Vector<T>::from_row(const Matrix<T> &matrix) {
     if (matrix.get_rows() != 1) {
         throw std::invalid_argument("Matrix must be a row vector (1 x n)");
     }

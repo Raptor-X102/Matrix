@@ -162,13 +162,44 @@ public:
     void detailed_print() const;
 
     Matrix<T> transpose() const;
-    Matrix<T>& transpose_in_place();
+    Matrix<T> &transpose_in_place();
     Matrix<T> transpose_deep() const;
-    Matrix<T>& transpose_deep_in_place();    
+    Matrix<T> &transpose_deep_in_place();
 
     template<typename U>
     friend std::ostream &operator<<(std::ostream &os, const Matrix<U> &matrix);
 
+    using norm_return_type = typename detail::norm_return_type_impl<T>::type;
+
+    norm_return_type frobenius_norm() const;
+    T frobenius_norm_squared() const;
+    T trace() const;
+
+    template<typename U = T>
+    using sqrt_return_type = typename detail::sqrt_return_type_impl<U>::type;
+    
+    Matrix<sqrt_return_type<T>> sqrt() const;
+    bool has_square_root() const;
+
+    template<typename ResultType>
+    Matrix<ResultType> sqrt_2x2_impl() const;
+    
+    template<typename ResultType>
+    Matrix<ResultType> sqrt_newton_impl(int max_iter = 100, ResultType tolerance = ResultType(1e-10)) const;
+    
+    template<typename ResultType>
+    bool has_square_root_impl() const;
+    
+    template<typename ResultType>
+    bool has_square_root_direct_impl() const;
+    
+    template<typename ResultType>
+    bool has_square_root_via_eigen_impl() const;
+    
+    template<typename ResultType>
+    Matrix<ResultType> sqrt_impl() const;
+
+    static T generate_random(T min_val, T max_val);
 private:
     static std::vector<T> create_controlled_diagonal(int size,
                                                      T min_val,
@@ -231,11 +262,15 @@ private:
                                      int start_j,
                                      int rows_in_block,
                                      int cols_in_block) const;
+/*template<typename U, typename V>
+auto create_scalar_recursive(const U& example, V value);
 
+template<typename ArgType, typename ValueType>  
+static auto create_scalar(const ArgType& example, ValueType value);
+*/
 protected:
     template<typename U = T> static U identity_element(int rows, int cols);
     template<typename U = T> static U zero_element(int rows, int cols);
-    static T generate_random(T min_val, T max_val);
 };
 
 template<typename T, typename U>
@@ -276,3 +311,5 @@ auto operator-(const U &scalar, const Matrix<T> &matrix);
 #include "Matrix_inverse.ipp"
 #include "Matrix_helpers.ipp"
 #include "Matrix_transpose.ipp"
+#include "Matrix_properties.ipp"
+#include "Matrix_sqrt.ipp"

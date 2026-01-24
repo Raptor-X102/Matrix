@@ -25,6 +25,7 @@ option(BUILD_UNIVERSAL_DETERMINANT_TEST "Build universal determinant test" ON)
 option(BUILD_MIXED_MULTIPLICATION_TEST "Build mixed type multiplication test" ON)
 option(BUILD_TRANSPOSE_TIMING_TEST "Build transpose timing test" ON)
 option(BUILD_VECTOR_TEST "Build Vector class test" ON)
+option(BUILD_SQRT_TEST "Build matrix square root test" ON)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -108,6 +109,14 @@ if(BUILD_VECTOR_TEST)
     endif()
 endif()
 
+if(BUILD_SQRT_TEST)
+    add_executable(matrix_sqrt_test ${SRC_DIR}/test_sqrt.cpp)
+    set_property(TARGET matrix_sqrt_test PROPERTY CXX_STANDARD 17)
+    if(ENABLE_TIME_MEASURE)
+        target_compile_definitions(matrix_sqrt_test PRIVATE TIME_MEASURE=1)
+    endif()
+endif()
+
 # Применяем флаги в зависимости от типа сборки
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_DEBUG}")
@@ -129,6 +138,7 @@ message(STATUS "Build universal determinant test: ${BUILD_UNIVERSAL_DETERMINANT_
 message(STATUS "Build mixed multiplication test: ${BUILD_MIXED_MULTIPLICATION_TEST}")
 message(STATUS "Build transpose timing test: ${BUILD_TRANSPOSE_TIMING_TEST}")
 message(STATUS "Build vector test: ${BUILD_VECTOR_TEST}")
+message(STATUS "Build sqrt test: ${BUILD_SQRT_TEST}")
 
 # Настройка clang-format если доступен
 find_program(CLANG_FORMAT "clang-format")
