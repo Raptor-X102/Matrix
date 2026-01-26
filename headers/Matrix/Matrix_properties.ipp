@@ -174,7 +174,7 @@ typename Matrix<ComputeType>::norm_return_type Matrix<T>::off_diagonal_norm(cons
     if constexpr (detail::is_matrix_v<NormType>) {
         int block_rows = 1;
         int block_cols = 1;
-        if (n > 0 && H(0,0).get_rows() > 0) {
+        if (n > 0 && H(0,0).get_rows() > 0 && H(0,0).get_cols() > 0) {
             block_rows = H(0,0).get_rows();
             block_cols = H(0,0).get_cols();
         }

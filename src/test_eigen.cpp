@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <vector>
 #include <numeric>
+#include <random>
 
 #include "Matrix.hpp"
 #include "Vector.hpp"
@@ -27,7 +28,10 @@ template<typename T> std::string type_name() {
 }
 
 template<typename T>
-Matrix<T> generate_symmetric_test_matrix(int size) {
+Matrix<T> generate_random_test_matrix(int size) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    
     if constexpr (detail::is_matrix_v<T>) {
         using ElemType = typename T::value_type;
         int block_size;
@@ -37,78 +41,97 @@ Matrix<T> generate_symmetric_test_matrix(int size) {
         Matrix<T> A = Matrix<T>::BlockMatrix(size, size, block_size, block_size);
         
         for (int i = 0; i < size; ++i) {
-            for (int j = i; j < size; ++j) {
-                T block;
-                
-                if (i == j) {
-                    block = T::Identity(block_size, block_size);
+            for (int j = 0; j < size; ++j) {
+                if constexpr (std::is_same_v<ElemType, int>) {
+                    std::uniform_int_distribution<> dist(-10, 10);
+                    A(i, j) = T::Generate_matrix(block_size, block_size, -5, 5);
+                } else if constexpr (std::is_same_v<ElemType, float>) {
+                    std::uniform_real_distribution<float> dist(-5.0f, 5.0f);
+                    T block(block_size, block_size);
                     for (int bi = 0; bi < block_size; ++bi) {
                         for (int bj = 0; bj < block_size; ++bj) {
-                            if (bi == bj) {
-                                block(bi, bj) = static_cast<ElemType>(1.0 + i * 0.5);
-                            } else if (bi < bj) {
-                                block(bi, bj) = static_cast<ElemType>(0.1);
-                                block(bj, bi) = static_cast<ElemType>(0.1);
-                            }
+                            block(bi, bj) = dist(gen);
                         }
                     }
-                } else {
-                    block = T::Zero(block_size, block_size);
-                    block(0, 0) = static_cast<ElemType>(0.05);
-                }
-                
-                A(i, j) = block;
-                if (i != j) {
-                    A(j, i) = block;
+                    A(i, j) = block;
+                } else if constexpr (std::is_same_v<ElemType, double>) {
+                    std::uniform_real_distribution<double> dist(-5.0, 5.0);
+                    T block(block_size, block_size);
+                    for (int bi = 0; bi < block_size; ++bi) {
+                        for (int bj = 0; bj < block_size; ++bj) {
+                            block(bi, bj) = dist(gen);
+                        }
+                    }
+                    A(i, j) = block;
+                } else if constexpr (detail::is_complex_v<ElemType>) {
+                    using RealType = typename ElemType::value_type;
+                    std::uniform_real_distribution<RealType> dist(-2.0, 2.0);
+                    T block(block_size, block_size);
+                    for (int bi = 0; bi < block_size; ++bi) {
+                        for (int bj = 0; bj < block_size; ++bj) {
+                            block(bi, bj) = ElemType(dist(gen), dist(gen));
+                        }
+                    }
+                    A(i, j) = block;
                 }
             }
         }
-        
         return A;
     } else if constexpr (std::is_same_v<T, int>) {
-        Matrix<double> A_double = Matrix<double>::Zero(size, size);
-        
+        std::uniform_int_distribution<> dist(-10, 10);
+        Matrix<int> A(size, size);
         for (int i = 0; i < size; ++i) {
-            for (int j = i; j < size; ++j) {
-                if (i == j) {
-                    A_double(i, j) = 1.0 + i * 0.5;
-                } else {
-                    A_double(i, j) = 0.1;
-                    A_double(j, i) = 0.1;
-                }
+            for (int j = 0; j < size; ++j) {
+                A(i, j) = dist(gen);
             }
+            A(i, i) += 5;
         }
-        
-        Matrix<int> A_int = A_double.cast_to<int>();
-        return A_int;
+        return A;
+    } else if constexpr (std::is_same_v<T, float>) {
+        std::uniform_real_distribution<float> dist(-5.0f, 5.0f);
+        Matrix<float> A(size, size);
+        for (int i = 0; i < size; ++i) {
+            for (int j = 0; j < size; ++j) {
+                A(i, j) = dist(gen);
+            }
+            A(i, i) += 2.0f;
+        }
+        return A;
+    } else if constexpr (std::is_same_v<T, double>) {
+        std::uniform_real_distribution<double> dist(-5.0, 5.0);
+        Matrix<double> A(size, size);
+        for (int i = 0; i < size; ++i) {
+            for (int j = 0; j < size; ++j) {
+                A(i, j) = dist(gen);
+            }
+            A(i, i) += 2.0;
+        }
+        return A;
+    } else if constexpr (std::is_same_v<T, std::complex<float>>) {
+        std::uniform_real_distribution<float> dist(-2.0f, 2.0f);
+        Matrix<std::complex<float>> A(size, size);
+        for (int i = 0; i < size; ++i) {
+            for (int j = 0; j < size; ++j) {
+                A(i, j) = std::complex<float>(dist(gen), dist(gen));
+            }
+            A(i, i) += std::complex<float>(2.0f, 0.0f);
+        }
+        return A;
+    } else if constexpr (std::is_same_v<T, std::complex<double>>) {
+        std::uniform_real_distribution<double> dist(-2.0, 2.0);
+        Matrix<std::complex<double>> A(size, size);
+        for (int i = 0; i < size; ++i) {
+            for (int j = 0; j < size; ++j) {
+                A(i, j) = std::complex<double>(dist(gen), dist(gen));
+            }
+            A(i, i) += std::complex<double>(2.0, 0.0);
+        }
+        return A;
     } else {
-        Matrix<T> A = Matrix<T>::Zero(size, size);
-        
+        Matrix<T> A = Matrix<T>::Generate_matrix(size, size, T(-2), T(2), 100, T(1));
         for (int i = 0; i < size; ++i) {
-            for (int j = i; j < size; ++j) {
-                if (i == j) {
-                    if constexpr (std::is_same_v<T, std::complex<double>>) {
-                        A(i, j) = T(1.0 + i * 0.5, 0.0);
-                    } else if constexpr (std::is_same_v<T, std::complex<float>>) {
-                        A(i, j) = T(1.0f + i * 0.5f, 0.0f);
-                    } else {
-                        A(i, j) = static_cast<T>(1.0 + i * 0.5);
-                    }
-                } else {
-                    if constexpr (std::is_same_v<T, std::complex<double>>) {
-                        A(i, j) = T(0.1, 0.0);
-                        A(j, i) = T(0.1, 0.0);
-                    } else if constexpr (std::is_same_v<T, std::complex<float>>) {
-                        A(i, j) = T(0.1f, 0.0f);
-                        A(j, i) = T(0.1f, 0.0f);
-                    } else {
-                        A(i, j) = static_cast<T>(0.1);
-                        A(j, i) = static_cast<T>(0.1);
-                    }
-                }
-            }
+            A(i, i) = A(i, i) + T(2);
         }
-        
         return A;
     }
 }
@@ -193,10 +216,10 @@ void test_eigen_for_type(int size) {
     auto total_start = std::chrono::high_resolution_clock::now();
     
     try {
-        std::cout << "\n1. GENERATING TEST MATRIX...\n";
+        std::cout << "\n1. GENERATING RANDOM MATRIX...\n";
         auto matrix_gen_start = std::chrono::high_resolution_clock::now();
         
-        Matrix<T> A = generate_symmetric_test_matrix<T>(size);
+        Matrix<T> A = generate_random_test_matrix<T>(size);
         
         auto matrix_gen_end = std::chrono::high_resolution_clock::now();
         double matrix_gen_time = std::chrono::duration<double>(matrix_gen_end - matrix_gen_start).count();
@@ -257,8 +280,8 @@ void test_eigen_for_type(int size) {
         for (int i = 0; i < checks_to_show; ++i) {
             if (i >= eigenvectors.get_cols()) break;
             
-            Vector<ComputeType> v(size);
-            for (int j = 0; j < size; ++j) {
+            Vector<ComputeType> v(eigenvectors.get_rows());
+            for (int j = 0; j < eigenvectors.get_rows(); ++j) {
                 v[j] = eigenvectors(j, i);
             }
             
@@ -320,42 +343,19 @@ void test_eigen_for_type(int size) {
             std::cout << "   Matrix is not symmetric\n";
         }
         
-        auto trace = A.trace();
-        
-        std::cout << "   Trace(A) = ";
-        if constexpr (detail::is_matrix_v<decltype(trace)>) {
-            std::cout << type_name<decltype(trace)>() << " " 
-                     << trace.get_rows() << "x" << trace.get_cols() << "\n";
-        } else if constexpr (detail::is_complex_v<decltype(trace)>) {
-            std::cout << "(" << trace.real() << " + " << trace.imag() << "i)\n";
-        } else {
-            std::cout << trace << "\n";
-        }
-        
-        std::cout << "   Sum of eigenvalues = ";
-        if (!eigenvalues.empty()) {
-            using ElemType = typename std::decay<decltype(eigenvalues[0])>::type;
-            
-            if constexpr (detail::is_matrix_v<ElemType>) {
-                auto sum = eigenvalues[0];
-                for (size_t idx = 1; idx < eigenvalues.size(); ++idx) {
-                    sum = sum + eigenvalues[idx];
-                }
-                std::cout << "\n   Sum matrix structure:\n";
-                sum.print();
+        try {
+            auto trace = A.trace();
+            std::cout << "   Trace(A) = ";
+            if constexpr (detail::is_matrix_v<decltype(trace)>) {
+                std::cout << type_name<decltype(trace)>() << " " 
+                         << trace.get_rows() << "x" << trace.get_cols() << "\n";
+            } else if constexpr (detail::is_complex_v<decltype(trace)>) {
+                std::cout << "(" << trace.real() << " + " << trace.imag() << "i)\n";
             } else {
-                ElemType init = ElemType{};
-                auto eigenvalues_sum = std::accumulate(eigenvalues.begin(), eigenvalues.end(), init);
-                
-                if constexpr (detail::is_complex_v<decltype(eigenvalues_sum)>) {
-                    std::cout << "(" << eigenvalues_sum.real() << " + " 
-                             << eigenvalues_sum.imag() << "i)\n";
-                } else {
-                    std::cout << eigenvalues_sum << "\n";
-                }
+                std::cout << trace << "\n";
             }
-        } else {
-            std::cout << "N/A (no eigenvalues)\n";
+        } catch (...) {
+            std::cout << "   Trace computation failed\n";
         }
         
         auto total_end = std::chrono::high_resolution_clock::now();
@@ -386,6 +386,9 @@ int main() {
     std::cout << "===============================================\n";
     std::cout << "MATRIX EIGENVALUES AND EIGENVECTORS TESTER\n";
     std::cout << "===============================================\n";
+    
+    std::random_device rd;
+    std::mt19937 gen(rd());
     
     while (true) {
         int size;

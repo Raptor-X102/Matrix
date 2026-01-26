@@ -4,14 +4,23 @@ template<typename T> T Vector<T>::dot(const Vector<T> &other) const {
     }
 
 #if defined(__AVX__) || defined(__AVX2__)
-    return avx_dot_impl(other);
-#else
+    if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>) {
+        return avx_dot_impl(other);
+    }
+#endif
+    
     T result = this->zero_element(1, 1);
-    for (int i = 0; i < size(); ++i) {
-        result += (*this)(i)*other(i);
+    
+    if constexpr (detail::is_complex_v<T>) {
+        for (int i = 0; i < size(); ++i) {
+            result += std::conj((*this)(i)) * other(i);
+        }
+    } else {
+        for (int i = 0; i < size(); ++i) {
+            result += (*this)(i) * other(i);
+        }
     }
     return result;
-#endif
 }
 
 template<typename T> Vector<T> Vector<T>::cross(const Vector<T> &other) const {
@@ -28,14 +37,15 @@ template<typename T> Vector<T> Vector<T>::cross(const Vector<T> &other) const {
 
 template<typename T> T Vector<T>::norm() const {
     T dot_val = this->dot(*this);
-
-    if constexpr (std::is_floating_point_v<T>) {
-        return std::sqrt(dot_val);
-    } else if constexpr (std::is_same_v<T, std::complex<float>>
-                         || std::is_same_v<T, std::complex<double>>) {
+    
+    if constexpr (detail::is_complex_v<T>) {
         using RealType = typename T::value_type;
-        RealType abs_val = std::abs(dot_val);
-        return std::sqrt(abs_val);
+        RealType real_dot_val = dot_val.real();
+        using std::sqrt;
+        return T(sqrt(real_dot_val), RealType(0));
+    } else if constexpr (std::is_floating_point_v<T>) {
+        using std::sqrt;
+        return sqrt(dot_val);
     } else if constexpr (detail::has_sqrt_v<T>) {
         return sqrt(dot_val);
     } else {
@@ -44,31 +54,29 @@ template<typename T> T Vector<T>::norm() const {
 }
 
 template<typename T> T Vector<T>::angle(const Vector<T> &other) const {
-    if constexpr (std::is_floating_point_v<T>) {
-        T cos_angle = this->dot(other) / (this->norm() * other.norm());
-        cos_angle = std::max(T{-1}, std::min(T{1}, cos_angle));
-        return std::acos(cos_angle);
-    } else if constexpr (std::is_same_v<T, std::complex<float>>
-                         || std::is_same_v<T, std::complex<double>>) {
+    if constexpr (detail::is_complex_v<T>) {
         T dot_val = this->dot(other);
-
         T norm1 = this->norm();
         T norm2 = other.norm();
-
+        
         if (norm1 == T{} || norm2 == T{}) {
             throw std::runtime_error("Cannot compute angle with zero vector");
         }
-
+        
         using RealType = typename T::value_type;
-        RealType abs_dot = std::abs(dot_val);
-        RealType product = std::abs(norm1) * std::abs(norm2);
-
-        if (product == RealType{}) {
+        RealType abs_dot_val = std::abs(dot_val);
+        RealType norms_product = std::abs(norm1) * std::abs(norm2);
+        
+        if (norms_product == RealType{}) {
             throw std::runtime_error("Cannot compute angle with zero norm");
         }
-
-        RealType cos_angle = abs_dot / product;
+        
+        RealType cos_angle = abs_dot_val / norms_product;
         cos_angle = std::max(RealType{-1}, std::min(RealType{1}, cos_angle));
+        return T(std::acos(cos_angle), RealType(0));
+    } else if constexpr (std::is_floating_point_v<T>) {
+        T cos_angle = this->dot(other) / (this->norm() * other.norm());
+        cos_angle = std::max(T{-1}, std::min(T{1}, cos_angle));
         return std::acos(cos_angle);
     } else {
         throw std::runtime_error(
@@ -76,15 +84,15 @@ template<typename T> T Vector<T>::angle(const Vector<T> &other) const {
     }
 }
 
+
 template<typename T>
 bool Vector<T>::is_orthogonal(const Vector<T> &other, T tolerance) const {
-    if constexpr (std::is_arithmetic_v<T>) {
-        return std::abs(this->dot(other)) < std::abs(tolerance);
-    } else if constexpr (std::is_same_v<T, std::complex<float>>
-                         || std::is_same_v<T, std::complex<double>>) {
+    if constexpr (detail::is_complex_v<T>) {
         T dot_val = this->dot(other);
         using RealType = typename T::value_type;
         return std::abs(dot_val) < std::abs(tolerance);
+    } else if constexpr (std::is_arithmetic_v<T>) {
+        return std::abs(this->dot(other)) < std::abs(tolerance);
     } else {
         T zero_val = zero_element(1, 1);
         return this->is_equal(this->dot(other), zero_val);

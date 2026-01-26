@@ -1,30 +1,6 @@
 #include "Vector.hpp"
 
-template<typename T>
-template<typename ComputeType>
-Vector<ComputeType> Matrix<T>::householder_vector(const Vector<ComputeType>& x) const {
-    int m = x.size();
-    
-    auto norm_x = x.norm();
-    
-    if (this->template is_norm_zero<ComputeType>(norm_x)) {
-        return Vector<ComputeType>(m);
-    }
-    
-    auto e1 = Vector<ComputeType>(m);
-    e1[0] = norm_x;
-    
-    auto v = x + e1;
-    auto norm_v = v.norm();
-    
-    if (this->template is_norm_zero<ComputeType>(norm_v)) {
-        return Vector<ComputeType>(m);
-    }
-    
-    v = v / norm_v;
-    
-    return v;
-}
+// ====================== QR DECOMPOSITION ======================
 
 template<typename T>
 template<typename ComputeType>
@@ -38,7 +14,7 @@ std::pair<Matrix<ComputeType>, Matrix<ComputeType>> Matrix<T>::qr_decomposition(
     if constexpr (detail::is_matrix_v<ComputeType>) {
         int block_rows = 1;
         int block_cols = 1;
-        if (m > 0 && n > 0 && R(0,0).get_rows() > 0) {
+        if (m > 0 && n > 0 && R(0,0).get_rows() > 0 && R(0,0).get_cols() > 0) {
             block_rows = R(0,0).get_rows();
             block_cols = R(0,0).get_cols();
         }
@@ -56,10 +32,21 @@ std::pair<Matrix<ComputeType>, Matrix<ComputeType>> Matrix<T>::qr_decomposition(
         auto v = householder_vector(x);
         auto v_norm = v.norm();
         
-        if (this->template is_norm_zero<ComputeType>(v_norm)) 
+        if (is_norm_zero(v_norm)) 
             continue;
         
-        auto two_scalar = Matrix<ComputeType>::create_scalar(R(0,0), 2.0);
+        ComputeType two_scalar;
+        if constexpr (detail::is_matrix_v<ComputeType>) {
+            using InnerType = typename ComputeType::value_type;
+            auto block = R(0,0);
+            InnerType inner_two = create_scalar(block(0,0), InnerType(2));
+            two_scalar = ComputeType::Diagonal(block.get_rows(), block.get_cols(), inner_two);
+        } else if constexpr (detail::is_complex_v<ComputeType>) {
+            using RealType = typename ComputeType::value_type;
+            two_scalar = ComputeType(RealType(2), RealType(0));
+        } else {
+            two_scalar = ComputeType(2);
+        }
         
         for (int j = k; j < n; ++j) {
             Vector<ComputeType> col(m - k);
@@ -67,7 +54,15 @@ std::pair<Matrix<ComputeType>, Matrix<ComputeType>> Matrix<T>::qr_decomposition(
                 col[i - k] = R(i, j);
             }
             
-            auto dot = col.dot(v);
+            ComputeType dot;
+            if constexpr (detail::is_complex_v<ComputeType>) {
+                dot = ComputeType(0);
+                for (int i = 0; i < m - k; ++i) {
+                    dot += std::conj(v[i]) * col[i];
+                }
+            } else {
+                dot = col.dot(v);
+            }
             
             for (int i = k; i < m; ++i) {
                 R(i, j) = R(i, j) - v[i - k] * dot * two_scalar;
@@ -80,7 +75,15 @@ std::pair<Matrix<ComputeType>, Matrix<ComputeType>> Matrix<T>::qr_decomposition(
                 col[i - k] = Q(i, j);
             }
             
-            auto dot = col.dot(v);
+            ComputeType dot;
+            if constexpr (detail::is_complex_v<ComputeType>) {
+                dot = ComputeType(0);
+                for (int i = 0; i < m - k; ++i) {
+                    dot += std::conj(v[i]) * col[i];
+                }
+            } else {
+                dot = col.dot(v);
+            }
             
             for (int i = k; i < m; ++i) {
                 Q(i, j) = Q(i, j) - v[i - k] * dot * two_scalar;
@@ -90,6 +93,74 @@ std::pair<Matrix<ComputeType>, Matrix<ComputeType>> Matrix<T>::qr_decomposition(
     
     return {Q.transpose(), R};
 }
+
+// ====================== HOUSEHOLDER ======================
+
+template<typename T>
+template<typename ComputeType>
+Vector<ComputeType> Matrix<T>::householder_vector(const Vector<ComputeType>& x) const {
+    int m = x.size();
+    
+    if (m == 0) {
+        return Vector<ComputeType>(0);
+    }
+    
+    auto norm_x = x.norm();
+    
+    if constexpr (detail::is_matrix_v<ComputeType>) {
+        auto e1 = Vector<ComputeType>(m);
+        
+        int block_rows = 1, block_cols = 1;
+        if (m > 0) {
+            auto sample = x[0];
+            if constexpr (detail::is_matrix_v<decltype(sample)>) {
+                block_rows = sample.get_rows();
+                block_cols = sample.get_cols();
+            }
+        }
+        
+        ComputeType identity_block;
+        if constexpr (detail::is_matrix_v<ComputeType>) {
+            using InnerType = typename ComputeType::value_type;
+            identity_block = ComputeType::Identity(block_rows, block_cols);
+        } else {
+            identity_block = ComputeType{1};
+        }
+        
+        e1[0] = identity_block * norm_x;
+        
+        auto v = x + e1;
+        auto norm_v = v.norm();
+        
+        if (is_norm_zero(norm_v)) {
+            return Vector<ComputeType>(m);
+        }
+        
+        v = v / norm_v;
+        
+        return v;
+    } else {
+        if (is_norm_zero(norm_x)) {
+            return Vector<ComputeType>(m);
+        }
+        
+        auto e1 = Vector<ComputeType>(m);
+        e1[0] = norm_x;
+        
+        auto v = x + e1;
+        auto norm_v = v.norm();
+        
+        if (is_norm_zero(norm_v)) {
+            return Vector<ComputeType>(m);
+        }
+        
+        v = v / norm_v;
+        
+        return v;
+    }
+}
+
+// ====================== HESSENBERG FORM ======================
 
 template<typename T>
 template<typename ComputeType>
@@ -106,7 +177,7 @@ Matrix<ComputeType> Matrix<T>::hessenberg_form() const {
         auto v = householder_vector(x);
         auto v_norm = v.norm();
         
-        if (this->template is_norm_zero<ComputeType>(v_norm)) continue;
+        if (is_norm_zero(v_norm)) continue;
         
         apply_householder_left(H, v, k + 1);
         apply_householder_right(H, v, k + 1);
@@ -163,6 +234,8 @@ void Matrix<T>::apply_householder_right(Matrix<ComputeType>& A,
     }
 }
 
+// ====================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ======================
+
 template<typename T>
 template<typename ComputeType>
 Vector<ComputeType> Matrix<T>::back_substitution(const Matrix<ComputeType>& R, 
@@ -175,7 +248,7 @@ Vector<ComputeType> Matrix<T>::back_substitution(const Matrix<ComputeType>& R,
         if constexpr (detail::is_matrix_v<ComputeType>) {
             int block_rows = 1;
             int block_cols = 1;
-            if (n > 0 && R(0,0).get_rows() > 0) {
+            if (n > 0 && R(0,0).get_rows() > 0 && R(0,0).get_cols() > 0) {
                 block_rows = R(0,0).get_rows();
                 block_cols = R(0,0).get_cols();
             }
@@ -195,14 +268,16 @@ Vector<ComputeType> Matrix<T>::back_substitution(const Matrix<ComputeType>& R,
 
 template<typename T>
 template<typename ComputeType>
-Vector<ComputeType> Matrix<T>::inverse_iteration(const Matrix<ComputeType>& A, const ComputeType& lambda, int max_iterations) const {
+Vector<ComputeType> Matrix<T>::inverse_iteration(const Matrix<ComputeType>& A, 
+                                                const ComputeType& lambda, 
+                                                int max_iterations) const {
     int n = A.get_rows();
     
     Matrix<ComputeType> I;
     if constexpr (detail::is_matrix_v<ComputeType>) {
         int block_rows = 1;
         int block_cols = 1;
-        if (n > 0 && A(0,0).get_rows() > 0) {
+        if (n > 0 && A(0,0).get_rows() > 0 && A(0,0).get_cols() > 0) {
             block_rows = A(0,0).get_rows();
             block_cols = A(0,0).get_cols();
         }
@@ -248,19 +323,39 @@ std::vector<ComputeType> Matrix<T>::extract_eigenvalues_2x2(const Matrix<Compute
         auto trace = a + d;
         auto det = a * d - b * c;
         
-        auto two = Matrix<ComputeType>::create_scalar(a, 2.0);
-        auto half = trace / two;
-        auto quarter_trace_sq = half * half;
-        auto discriminant = quarter_trace_sq - det;
-        
         using std::sqrt;
-        auto sqrt_disc = sqrt(discriminant);
-        eigenvalues.push_back(half + sqrt_disc);
-        eigenvalues.push_back(half - sqrt_disc);
+        
+        if constexpr (detail::is_complex_v<ComputeType>) {
+            using RealType = typename ComputeType::value_type;
+            auto discriminant = trace * trace - RealType(4) * det;
+            auto sqrt_disc = sqrt(discriminant);
+            eigenvalues.push_back((trace + sqrt_disc) / RealType(2));
+            eigenvalues.push_back((trace - sqrt_disc) / RealType(2));
+        } 
+        else if constexpr (std::is_floating_point_v<ComputeType>) {
+            auto discriminant = trace * trace - ComputeType(4) * det;
+            
+            if (discriminant >= ComputeType(0)) {
+                auto sqrt_disc = sqrt(discriminant);
+                eigenvalues.push_back((trace + sqrt_disc) / ComputeType(2));
+                eigenvalues.push_back((trace - sqrt_disc) / ComputeType(2));
+            } else {
+                using ComplexType = std::complex<ComputeType>;
+                auto sqrt_disc = sqrt(ComplexType(discriminant));
+                eigenvalues.push_back(ComplexType((trace + sqrt_disc) / ComputeType(2)));
+                eigenvalues.push_back(ComplexType((trace - sqrt_disc) / ComputeType(2)));
+            }
+        }
+        else {
+            eigenvalues.push_back(H(i, i));
+            eigenvalues.push_back(H(i + 1, i + 1));
+        }
     }
     
     return eigenvalues;
 }
+
+// ====================== ОСНОВНЫЕ ПУБЛИЧНЫЕ МЕТОДЫ ======================
 
 template<typename T>
 template<typename ComputeType>
@@ -269,23 +364,21 @@ std::vector<ComputeType> Matrix<T>::eigenvalues_qr(int max_iterations) const {
         throw std::invalid_argument("Eigenvalues require square matrix");
     }
     
-    using ActualComputeType = ComputeType;
-    
-    auto H = this->template cast_to<ActualComputeType>();
+    auto H = this->template cast_to<ComputeType>();
     int n = H.get_rows();
     
-    H = H.template hessenberg_form<ActualComputeType>();
+    H = H.template hessenberg_form<ComputeType>();
     
     for (int iter = 0; iter < max_iterations; ++iter) {
-        auto [Q, R] = H.template qr_decomposition<ActualComputeType>();
+        auto [Q, R] = H.template qr_decomposition<ComputeType>();
         H = R * Q;
         
         auto off_norm = this->template off_diagonal_norm(H);
         
-        if (this->template is_norm_zero<decltype(off_norm)>(off_norm)) break;
+        if (is_norm_zero(off_norm)) break;
     }
     
-    std::vector<ActualComputeType> eigenvalues;
+    std::vector<ComputeType> eigenvalues;
     int i = 0;
     
     while (i < n) {
@@ -295,12 +388,7 @@ std::vector<ComputeType> Matrix<T>::eigenvalues_qr(int max_iterations) const {
         } else {
             auto off_diag = H(i, i + 1);
             
-            bool is_zero_off_diag = false;
-            if constexpr (detail::is_matrix_v<ActualComputeType>) {
-                is_zero_off_diag = this->template is_norm_zero<ActualComputeType>(off_diag);
-            } else {
-                is_zero_off_diag = this->template is_norm_zero<ActualComputeType>(off_diag);
-            }
+            bool is_zero_off_diag = is_norm_zero(off_diag);
             
             if (is_zero_off_diag) {
                 eigenvalues.push_back(H(i, i));
@@ -328,7 +416,7 @@ Matrix<ComputeType> Matrix<T>::eigenvectors_qr(int max_iterations) const {
     if constexpr (detail::is_matrix_v<ComputeType>) {
         int block_rows = 1;
         int block_cols = 1;
-        if (n > 0 && A_orig(0,0).get_rows() > 0) {
+        if (n > 0 && A_orig(0,0).get_rows() > 0 && A_orig(0,0).get_cols() > 0) {
             block_rows = A_orig(0,0).get_rows();
             block_cols = A_orig(0,0).get_cols();
         }
@@ -344,7 +432,7 @@ Matrix<ComputeType> Matrix<T>::eigenvectors_qr(int max_iterations) const {
         
         auto off_norm = this->template off_diagonal_norm(A_orig);
         
-        if (this->template is_norm_zero<decltype(off_norm)>(off_norm)) break;
+        if (is_norm_zero(off_norm)) break;
     }
     
     return V;
@@ -360,24 +448,23 @@ Matrix<T>::eigen_qr(int max_iterations) const {
     return {eigvals, eigvecs};
 }
 
+// ====================== УПРОЩЁННЫЕ ИНТЕРФЕЙСЫ ======================
+
 template<typename T>
 std::vector<typename Matrix<T>::template eigen_return_type<T>> 
 Matrix<T>::eigenvalues(int max_iterations) const {
-    using ComputeType = eigen_return_type<T>;
-    return this->template eigenvalues_qr<ComputeType>(max_iterations);
+    return this->template eigenvalues_qr<eigen_return_type<T>>(max_iterations);
 }
 
 template<typename T>
 Matrix<typename Matrix<T>::template eigen_return_type<T>> 
 Matrix<T>::eigenvectors(int max_iterations) const {
-    using ComputeType = eigen_return_type<T>;
-    return this->template eigenvectors_qr<ComputeType>(max_iterations);
+    return this->template eigenvectors_qr<eigen_return_type<T>>(max_iterations);
 }
 
 template<typename T>
 std::pair<std::vector<typename Matrix<T>::template eigen_return_type<T>>, 
           Matrix<typename Matrix<T>::template eigen_return_type<T>>> 
 Matrix<T>::eigen(int max_iterations) const {
-    using ComputeType = eigen_return_type<T>;
-    return this->template eigen_qr<ComputeType>(max_iterations);
+    return this->template eigen_qr<eigen_return_type<T>>(max_iterations);
 }

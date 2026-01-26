@@ -191,6 +191,7 @@ public:
     std::pair<std::vector<eigen_return_type<T>>, Matrix<eigen_return_type<T>>>
     eigen(int max_iterations = 1000) const;
     
+    // Вспомогательные публичные методы
     template<typename ComputeType = eigen_return_type<T>>
     std::vector<ComputeType> eigenvalues_qr(int max_iterations = 1000) const;
     
@@ -204,7 +205,6 @@ public:
     template<typename ComputeType = T>
     std::pair<Matrix<ComputeType>, Matrix<ComputeType>> qr_decomposition() const;
 
-    // Новые публичные методы для вычисления собственных значений/векторов
     template<typename ComputeType>
     Matrix<ComputeType> hessenberg_form() const;
 
@@ -326,6 +326,7 @@ private:
     typename Matrix<ComputeType>::norm_return_type off_diagonal_norm(const Matrix<ComputeType>& H) const;
 
     static constexpr int Default_max_iterations = 1000;
+
     static std::vector<T> create_controlled_diagonal(int size,
                                                      T min_val,
                                                      T max_val,
