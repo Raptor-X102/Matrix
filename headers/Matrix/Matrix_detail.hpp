@@ -67,6 +67,7 @@ namespace detail {
         static auto test() -> decltype(true ? std::declval<remove_all_ref_t<T>>()
                                             : std::declval<remove_all_ref_t<U>>());
         using test_type = decltype(test());
+
     public:
         using type = remove_all_ref_t<test_type>;
     };
@@ -90,14 +91,14 @@ namespace detail {
     };
 
     template<typename T>
-    struct inverse_return_type_impl<T, std::enable_if_t<detail::is_builtin_integral_v<T>>> {
-        static constexpr bool is_small = 
+    struct inverse_return_type_impl<T,
+                                    std::enable_if_t<detail::is_builtin_integral_v<T>>> {
+        static constexpr bool is_small =
             std::is_same_v<T, short> || std::is_same_v<T, unsigned short>;
         using type = std::conditional_t<is_small, float, double>;
     };
 
-    template<typename T> 
-    struct inverse_return_type_impl<Matrix<T>> {
+    template<typename T> struct inverse_return_type_impl<Matrix<T>> {
         using type = Matrix<typename inverse_return_type_impl<T>::type>;
     };
 
@@ -107,33 +108,32 @@ namespace detail {
 
     template<typename T>
     struct sqrt_return_type_impl<T, std::enable_if_t<detail::is_builtin_integral_v<T>>> {
-        static constexpr bool is_small = 
+        static constexpr bool is_small =
             std::is_same_v<T, short> || std::is_same_v<T, unsigned short>;
         using type = std::conditional_t<is_small, float, double>;
     };
 
-    template<typename T> 
-    struct sqrt_return_type_impl<Matrix<T>> {
+    template<typename T> struct sqrt_return_type_impl<Matrix<T>> {
         using type = Matrix<typename sqrt_return_type_impl<T>::type>;
     };
 
     template<typename T, typename = void> struct has_sqrt : std::false_type {};
     template<typename T>
-    struct has_sqrt<T, std::void_t<decltype(sqrt(std::declval<T>()))>> : std::true_type {};
+    struct has_sqrt<T, std::void_t<decltype(sqrt(std::declval<T>()))>> : std::true_type {
+    };
     template<typename T> constexpr bool has_sqrt_v = has_sqrt<T>::value;
 
     template<typename T, typename = void> struct has_acos : std::false_type {};
     template<typename T>
-    struct has_acos<T, std::void_t<decltype(acos(std::declval<T>()))>> : std::true_type {};
+    struct has_acos<T, std::void_t<decltype(acos(std::declval<T>()))>> : std::true_type {
+    };
     template<typename T> constexpr bool has_acos_v = has_acos<T>::value;
 
-    template<typename T>
-    auto sqrt_impl(const T& x) -> decltype(std::sqrt(x)) {
+    template<typename T> auto sqrt_impl(const T &x) -> decltype(std::sqrt(x)) {
         return std::sqrt(x);
     }
-    
-    template<typename T>
-    auto sqrt_impl_for_norm(const T& x) -> T {
+
+    template<typename T> auto sqrt_impl_for_norm(const T &x) -> T {
         if constexpr (is_builtin_integral_v<T>) {
             return static_cast<T>(std::sqrt(static_cast<double>(x)));
         } else if constexpr (is_complex_v<T>) {
@@ -144,27 +144,43 @@ namespace detail {
             return sqrt(x);
         }
     }
-    
+
     template<typename T>
-    auto sqrt_impl(const Matrix<T>& mat) -> 
-        Matrix<typename Matrix<T>::template sqrt_return_type<T>> {
+    auto sqrt_impl(const Matrix<T> &mat)
+        -> Matrix<typename Matrix<T>::template sqrt_return_type<T>> {
         return mat.sqrt();
     }
 
-    template<typename T, typename = void> 
-    struct norm_return_type_impl {
+    template<typename T, typename = void> struct norm_return_type_impl {
         using type = T;
     };
 
-    // Специализация для целых чисел
     template<typename T>
     struct norm_return_type_impl<T, std::enable_if_t<is_builtin_integral_v<T>>> {
         using type = double;
     };
 
-    // Специализация для матриц
-    template<typename T>
-    struct norm_return_type_impl<Matrix<T>> {
+    template<typename T> struct norm_return_type_impl<Matrix<T>> {
         using type = typename norm_return_type_impl<T>::type;
     };
+
+    template<typename T>
+    struct eigen_return_type_impl {
+        using type = std::conditional_t<
+            is_builtin_integral_v<T> || std::is_same_v<T, float> || std::is_same_v<T, double>,
+            std::complex<double>,
+            std::conditional_t<
+                std::is_same_v<T, std::complex<float>>,
+                std::complex<float>,
+                std::conditional_t<
+                    std::is_same_v<T, std::complex<double>>,
+                    std::complex<double>,
+                    T 
+                >
+            >
+        >;
+    };
+
+    template<typename T>
+    using eigen_return_type_t = typename eigen_return_type_impl<T>::type;
 } // namespace detail

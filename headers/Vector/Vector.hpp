@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Matrix.hpp"
 
+template<typename T> class Matrix;
 template<typename T> class Vector;
 
 template<typename T, typename U>
@@ -16,7 +16,19 @@ template<typename T, typename U> auto operator*(const U &scalar, const Vector<T>
 
 template<typename T, typename U> auto operator/(const Vector<T> &vec, const U &scalar);
 
+template<typename T, typename U>
+auto operator*(const Matrix<T> &matrix, const Vector<U> &vec);
+
+template<typename T, typename U>
+auto operator*(const Vector<T> &vec, const Matrix<U> &matrix);
+
+#ifndef MATRIX_IMPLEMENTATION_INCLUDED
+#define MATRIX_IMPLEMENTATION_INCLUDED
+#include "Matrix.hpp"
+#endif
+
 template<typename T> class Vector : public Matrix<T> {
+
 public:
     Vector();
     explicit Vector(int size);
@@ -25,6 +37,7 @@ public:
     explicit Vector(const Matrix<T> &matrix);
 
     static Vector from_row(const Matrix<T> &matrix);
+    static Vector<T> from_column(const Matrix<T> &matrix, int col);
 
     T &operator()(int i);
     const T &operator()(int i) const;

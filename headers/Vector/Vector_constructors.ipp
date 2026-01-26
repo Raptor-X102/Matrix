@@ -24,19 +24,36 @@ Vector<T>::Vector(const std::vector<T> &data)
 
 template<typename T>
 Vector<T>::Vector(const Matrix<T> &matrix)
-    : Matrix<T>(matrix) {
-    if (matrix.get_cols() != 1) {
-        throw std::invalid_argument("Matrix must be a column vector (n x 1)");
+    : Matrix<T>(matrix.get_rows() * matrix.get_cols(), 1) {
+    int idx = 0;
+    for (int i = 0; i < matrix.get_rows(); ++i) {
+        for (int j = 0; j < matrix.get_cols(); ++j) {
+            this->Matrix<T>::operator()(idx, 0) = matrix(i, j);
+            idx++;
+        }
     }
 }
 
-template<typename T> Vector<T> Vector<T>::from_row(const Matrix<T> &matrix) {
+template<typename T> 
+Vector<T> Vector<T>::from_row(const Matrix<T> &matrix) {
     if (matrix.get_rows() != 1) {
         throw std::invalid_argument("Matrix must be a row vector (1 x n)");
     }
     Vector<T> result(matrix.get_cols());
     for (int i = 0; i < matrix.get_cols(); ++i) {
         result(i) = matrix(0, i);
+    }
+    return result;
+}
+
+template<typename T> 
+static Vector<T> from_column(const Matrix<T> &matrix, int col) {
+    if (col < 0 || col >= matrix.get_cols()) {
+        throw std::invalid_argument("Column index out of bounds");
+    }
+    Vector<T> result(matrix.get_rows());
+    for (int i = 0; i < matrix.get_rows(); ++i) {
+        result(i) = matrix(i, col);
     }
     return result;
 }

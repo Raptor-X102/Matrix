@@ -26,6 +26,7 @@
 const int Default_iterations = 100;
 
 template<typename T> class Matrix;
+template<typename T> class Vector;
 
 namespace detail {
     template<typename T, typename U>
@@ -41,27 +42,6 @@ private:
     mutable std::optional<T> determinant_ = std::nullopt;
 
     static constexpr auto Epsilon = 1e-10;
-
-    void alloc_matrix_();
-    void init_zero_();
-    void fill_upper_triangle(T min_val = {}, T max_val = {});
-
-    std::optional<T> &get_determinant_();
-
-    template<typename ComputeType, bool IsBlockMatrix>
-    Matrix<ComputeType> create_augmented_matrix() const;
-
-    template<typename ComputeType>
-    Matrix<ComputeType> extract_inverse(const Matrix<ComputeType> &augmented) const;
-
-    template<typename ComputeType, bool IsBlockMatrix, bool UseAbs>
-    Matrix<ComputeType> inverse_impl() const;
-
-    template<typename ComputeType, bool IsBlockMatrix>
-    void normalize_row(Matrix<ComputeType> &augmented, int row) const;
-
-    template<typename ComputeType, bool IsBlockMatrix, bool UseAbs>
-    void eliminate_other_rows(Matrix<ComputeType> &augmented, int pivot_row) const;
 
 public:
     using value_type = T;
@@ -145,7 +125,8 @@ public:
 
     template<typename U = T> static bool is_equal(const U &a, const U &b);
 
-    template<typename U = T> static bool is_zero(const U &value);
+    template<typename U = T> 
+    static bool is_zero(const U &value);
 
     bool is_zero(int i, int j) const;
 
@@ -177,34 +158,90 @@ public:
 
     template<typename U = T>
     using sqrt_return_type = typename detail::sqrt_return_type_impl<U>::type;
-    
+
     Matrix<sqrt_return_type<T>> sqrt() const;
     bool has_square_root() const;
 
+    template<typename ResultType> Matrix<ResultType> sqrt_2x2_impl() const;
+
     template<typename ResultType>
-    Matrix<ResultType> sqrt_2x2_impl() const;
-    
-    template<typename ResultType>
-    Matrix<ResultType> sqrt_newton_impl(int max_iter = 100, ResultType tolerance = ResultType(1e-10)) const;
-    
-    template<typename ResultType>
-    bool has_square_root_impl() const;
-    
-    template<typename ResultType>
-    bool has_square_root_direct_impl() const;
-    
-    template<typename ResultType>
-    bool has_square_root_via_eigen_impl() const;
-    
-    template<typename ResultType>
-    Matrix<ResultType> sqrt_impl() const;
+    Matrix<ResultType> sqrt_newton_impl(int max_iter = 100,
+                                        ResultType tolerance = ResultType(1e-10)) const;
+
+    template<typename ResultType> bool has_square_root_impl() const;
+
+    template<typename ResultType> bool has_square_root_direct_impl() const;
+
+    template<typename ResultType> bool has_square_root_via_eigen_impl() const;
+
+    template<typename ResultType> Matrix<ResultType> sqrt_impl() const;
+
+    std::pair<Matrix<typename Matrix<T>::template sqrt_return_type<T>>, bool> 
+    safe_sqrt() const;
 
     static T generate_random(T min_val, T max_val);
+
+    bool is_symmetric() const;
+
+    template<typename U = T>
+    using eigen_return_type = typename detail::eigen_return_type_impl<U>::type;
+    
+    std::vector<eigen_return_type<T>> eigenvalues(int max_iterations = 1000) const;
+    Matrix<eigen_return_type<T>> eigenvectors(int max_iterations = 1000) const;
+    std::pair<std::vector<eigen_return_type<T>>, Matrix<eigen_return_type<T>>>
+    eigen(int max_iterations = 1000) const;
+    
+    template<typename ComputeType = eigen_return_type<T>>
+    std::vector<ComputeType> eigenvalues_qr(int max_iterations = 1000) const;
+    
+    template<typename ComputeType = eigen_return_type<T>>
+    Matrix<ComputeType> eigenvectors_qr(int max_iterations = 1000) const;
+    
+    template<typename ComputeType = eigen_return_type<T>>
+    std::pair<std::vector<ComputeType>, Matrix<ComputeType>>
+    eigen_qr(int max_iterations = 1000) const;
+
+    template<typename ComputeType = T>
+    std::pair<Matrix<ComputeType>, Matrix<ComputeType>> qr_decomposition() const;
+
+    // Новые публичные методы для вычисления собственных значений/векторов
+    template<typename ComputeType>
+    Matrix<ComputeType> hessenberg_form() const;
+
+    template<typename ComputeType>
+    Vector<ComputeType> householder_vector(const Vector<ComputeType>& x) const;
+
+    template<typename ExampleType, typename ValueType>
+    static auto create_scalar(const ExampleType& example, ValueType value);
+
+    template<typename ComputeType>
+    bool is_norm_zero(const ComputeType& norm_value) const;
+
+protected:
+    template<typename U = T> static U identity_element(int rows, int cols);
+    template<typename U = T> static U zero_element(int rows, int cols);
+
 private:
-    static std::vector<T> create_controlled_diagonal(int size,
-                                                     T min_val,
-                                                     T max_val,
-                                                     T target_determinant_magnitude);
+    void alloc_matrix_();
+    void init_zero_();
+    void fill_upper_triangle(T min_val = {}, T max_val = {});
+
+    std::optional<T> &get_determinant_();
+
+    template<typename ComputeType, bool IsBlockMatrix>
+    Matrix<ComputeType> create_augmented_matrix() const;
+
+    template<typename ComputeType>
+    Matrix<ComputeType> extract_inverse(const Matrix<ComputeType> &augmented) const;
+
+    template<typename ComputeType, bool IsBlockMatrix, bool UseAbs>
+    Matrix<ComputeType> inverse_impl() const;
+
+    template<typename ComputeType, bool IsBlockMatrix>
+    void normalize_row(Matrix<ComputeType> &augmented, int row) const;
+
+    template<typename ComputeType, bool IsBlockMatrix, bool UseAbs>
+    void eliminate_other_rows(Matrix<ComputeType> &augmented, int pivot_row) const;
 
     static void apply_transformation_type_I(Matrix &matrix, int rows);
     static void apply_transformation_type_II(Matrix &matrix,
@@ -262,15 +299,37 @@ private:
                                      int start_j,
                                      int rows_in_block,
                                      int cols_in_block) const;
-/*template<typename U, typename V>
-auto create_scalar_recursive(const U& example, V value);
 
-template<typename ArgType, typename ValueType>  
-static auto create_scalar(const ArgType& example, ValueType value);
-*/
-protected:
-    template<typename U = T> static U identity_element(int rows, int cols);
-    template<typename U = T> static U zero_element(int rows, int cols);
+    template<typename ComputeType>
+    void apply_householder_left(Matrix<ComputeType>& A,
+                                const Vector<ComputeType>& v,
+                                int k) const;
+
+    template<typename ComputeType>
+    void apply_householder_right(Matrix<ComputeType>& A,
+                                 const Vector<ComputeType>& v,
+                                 int k) const;
+
+    template<typename ComputeType>
+    Vector<ComputeType> back_substitution(const Matrix<ComputeType>& R,
+                                          const Vector<ComputeType>& y) const;
+
+    template<typename ComputeType>
+    Vector<ComputeType> inverse_iteration(const Matrix<ComputeType>& A,
+                                          const ComputeType& lambda,
+                                          int max_iterations = 50) const;
+
+    template<typename ComputeType>
+    std::vector<ComputeType> extract_eigenvalues_2x2(const Matrix<ComputeType>& H, int i) const;
+    
+    template<typename ComputeType>
+    typename Matrix<ComputeType>::norm_return_type off_diagonal_norm(const Matrix<ComputeType>& H) const;
+
+    static constexpr int Default_max_iterations = 1000;
+    static std::vector<T> create_controlled_diagonal(int size,
+                                                     T min_val,
+                                                     T max_val,
+                                                     T target_determinant_magnitude);
 };
 
 template<typename T, typename U>
@@ -313,3 +372,4 @@ auto operator-(const U &scalar, const Matrix<T> &matrix);
 #include "Matrix_transpose.ipp"
 #include "Matrix_properties.ipp"
 #include "Matrix_sqrt.ipp"
+#include "Matrix_eigen.ipp"

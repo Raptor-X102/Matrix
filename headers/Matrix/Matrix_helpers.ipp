@@ -150,25 +150,53 @@ bool Matrix<T>::is_equal(const U &a, const U &b) {
                     return false;
                 }
             }
-            return true;
         }
+        return true;
     } else {
         if constexpr (std::is_floating_point_v<U>) {
-            return std::abs(a - b) < Epsilon;
+            constexpr double epsilon = 1e-12;
+            if constexpr (std::is_same_v<U, float>) {
+                constexpr float epsilon_f = 1e-6f;
+                return std::abs(a - b) < epsilon_f;
+            } else {
+                return std::abs(a - b) < epsilon;
+            }
+        } else if constexpr (detail::is_complex_v<U>) {
+            using std::abs;
+            using RealType = typename U::value_type;
+            constexpr RealType epsilon = static_cast<RealType>(1e-12);
+            return abs(a - b) < epsilon;
         } else {
             return a == b;
         }
     }
 }
 
-template<typename T> template<typename U> bool Matrix<T>::is_zero(const U &value) {
+template<typename T>
+template<typename U>
+bool Matrix<T>::is_zero(const U &value) {
     if constexpr (detail::is_matrix_v<U>) {
-        auto det_opt = value.det();
-        return !det_opt.has_value() || is_zero(*det_opt);
-    } else if constexpr (std::is_same_v<U, float> || std::is_same_v<U, double>) {
-        return std::abs(value) < Epsilon;
+        auto norm_val = value.frobenius_norm();
+        return is_zero(norm_val);
+    } else if constexpr (detail::is_complex_v<U>) {
+        using std::abs;
+        constexpr double epsilon = 1e-12;
+        if constexpr (std::is_same_v<typename U::value_type, float>) {
+            constexpr float epsilon_f = 1e-6f;
+            return abs(value) < epsilon_f;
+        } else {
+            return abs(value) < epsilon;
+        }
+    } else if constexpr (std::is_floating_point_v<U>) {
+        constexpr double epsilon = 1e-12;
+        if constexpr (std::is_same_v<U, float>) {
+            constexpr float epsilon_f = 1e-6f;
+            return std::abs(value) < epsilon_f;
+        } else {
+            return std::abs(value) < epsilon;
+        }
     } else {
-        return value == U{};
+        return value == U{0};
     }
 }
 
@@ -398,5 +426,16 @@ template<typename T> template<typename U> U Matrix<T>::zero_element(int rows, in
         return U::Zero(rows, cols);
     } else {
         return U{0};
+    }
+}
+
+template<typename T>
+template<typename ExampleType, typename ValueType>
+auto Matrix<T>::create_scalar(const ExampleType &example, ValueType value) {
+    if constexpr (detail::is_matrix_v<ExampleType>) {
+        return value;
+    } else {
+        using CommonType = typename detail::matrix_common_type<ExampleType, ValueType>::type;
+        return static_cast<CommonType>(value);
     }
 }

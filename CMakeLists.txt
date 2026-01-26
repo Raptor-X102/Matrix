@@ -26,6 +26,7 @@ option(BUILD_MIXED_MULTIPLICATION_TEST "Build mixed type multiplication test" ON
 option(BUILD_TRANSPOSE_TIMING_TEST "Build transpose timing test" ON)
 option(BUILD_VECTOR_TEST "Build Vector class test" ON)
 option(BUILD_SQRT_TEST "Build matrix square root test" ON)
+option(BUILD_EIGEN_TEST "Build eigenvalues test" ON)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -117,6 +118,14 @@ if(BUILD_SQRT_TEST)
     endif()
 endif()
 
+if(BUILD_EIGEN_TEST)
+    add_executable(matrix_eigen_test ${SRC_DIR}/test_eigen.cpp)
+    set_property(TARGET matrix_eigen_test PROPERTY CXX_STANDARD 17)
+    if(ENABLE_TIME_MEASURE)
+        target_compile_definitions(matrix_eigen_test PRIVATE TIME_MEASURE=1)
+    endif()
+endif()
+
 # Применяем флаги в зависимости от типа сборки
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_DEBUG}")
@@ -139,6 +148,7 @@ message(STATUS "Build mixed multiplication test: ${BUILD_MIXED_MULTIPLICATION_TE
 message(STATUS "Build transpose timing test: ${BUILD_TRANSPOSE_TIMING_TEST}")
 message(STATUS "Build vector test: ${BUILD_VECTOR_TEST}")
 message(STATUS "Build sqrt test: ${BUILD_SQRT_TEST}")
+message(STATUS "Build eigen test: ${BUILD_EIGEN_TEST}")
 
 # Настройка clang-format если доступен
 find_program(CLANG_FORMAT "clang-format")

@@ -85,3 +85,45 @@ template<typename T> T &Vector<T>::operator[](int i) {
 template<typename T> const T &Vector<T>::operator[](int i) const {
     return (*this)(i);
 }
+
+template<typename T, typename U>
+auto operator*(const Matrix<T> &A, const Vector<U> &vec) {
+    if (A.get_cols() != vec.size()) {
+        throw std::invalid_argument("Matrix columns must match vector size for multiplication");
+    }
+    
+    using ResultType = typename detail::matrix_common_type<T, U>::type;
+    
+    Vector<ResultType> result(A.get_rows());
+    
+    for (int i = 0; i < A.get_rows(); ++i) {
+        ResultType sum = ResultType{};
+        for (int j = 0; j < A.get_cols(); ++j) {
+            sum = sum + A(i, j) * vec[j];
+        }
+        result[i] = sum;
+    }
+    
+    return result;
+}
+
+template<typename T, typename U>
+auto operator*(const Vector<T> &vec, const Matrix<U> &A) {
+    if (vec.size() != A.get_rows()) {
+        throw std::invalid_argument("Vector size must match matrix rows for multiplication");
+    }
+    
+    using ResultType = typename detail::matrix_common_type<T, U>::type;
+    
+    Vector<ResultType> result(A.get_cols());
+    
+    for (int j = 0; j < A.get_cols(); ++j) {
+        ResultType sum = ResultType{};
+        for (int i = 0; i < A.get_rows(); ++i) {
+            sum = sum + vec[i] * A(i, j);
+        }
+        result[j] = sum;
+    }
+    
+    return result;
+}
