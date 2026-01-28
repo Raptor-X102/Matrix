@@ -19,8 +19,8 @@ template<typename T, typename U> auto operator/(const Vector<T> &vec, const U &s
 template<typename T, typename U>
 auto operator*(const Matrix<T> &matrix, const Vector<U> &vec);
 
-template<typename T, typename U>
-auto operator*(const Vector<T> &vec, const Matrix<U> &matrix);
+//template<typename T, typename U>
+//auto operator*(const Vector<T> &vec, const Matrix<U> &matrix);
 
 #ifndef MATRIX_IMPLEMENTATION_INCLUDED
 #define MATRIX_IMPLEMENTATION_INCLUDED
@@ -82,6 +82,9 @@ public:
     const T *end() const;
     const T *cbegin() const;
     const T *cend() const;
+    
+    template<typename U>
+    friend std::ostream& operator<<(std::ostream& os, const Vector<U>& vec);
 
 private:
     T avx_dot_impl(const Vector<T> &other) const;

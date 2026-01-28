@@ -46,23 +46,75 @@ auto operator-(const Vector<T> &lhs, const Vector<U> &rhs) {
     return result;
 }
 
-template<typename T, typename U> auto operator*(const Vector<T> &vec, const U &scalar) {
-    using ResultType = decltype(std::declval<T>() * std::declval<U>());
+template<typename T, typename U> 
+auto operator*(const Vector<T> &vec, const U &scalar) {
+    using ResultType = typename detail::matrix_common_type<T, U>::type;
     Vector<ResultType> result(vec.size());
-
-    for (int i = 0; i < vec.size(); ++i) {
-        result[i] = vec[i] * scalar;
+    
+    // Для блочных матриц - инициализируем правильно
+    if constexpr (detail::is_matrix_v<ResultType>) {
+        if (vec.size() > 0) {
+            // Получаем размер блока
+            int block_rows = 1, block_cols = 1;
+            if constexpr (detail::is_matrix_v<T>) {
+                block_rows = vec[0].get_rows();
+                block_cols = vec[0].get_cols();
+            }
+            
+            // Создаем нулевые блоки правильного размера
+            auto zero_block = ResultType::Zero(block_rows, block_cols);
+            for (int i = 0; i < vec.size(); ++i) {
+                result[i] = zero_block;
+            }
+        }
     }
+    
+    for (int i = 0; i < vec.size(); ++i) {
+        if constexpr (detail::is_matrix_v<T>) {
+            // Для блочных матриц используем create_scalar
+            auto scalar_cast = Matrix<T>::create_scalar(vec[i], scalar);
+            result[i] = vec[i] * scalar_cast;
+        } else {
+            result[i] = vec[i] * scalar;
+        }
+    }
+    
     return result;
 }
 
-template<typename T, typename U> auto operator/(const Vector<T> &vec, const U &scalar) {
-    using ResultType = decltype(std::declval<T>() / std::declval<U>());
+template<typename T, typename U> 
+auto operator/(const Vector<T> &vec, const U &scalar) {
+    using ResultType = typename detail::matrix_common_type<T, U>::type;
     Vector<ResultType> result(vec.size());
-
-    for (int i = 0; i < vec.size(); ++i) {
-        result[i] = vec[i] / scalar;
+    
+    // Для блочных матриц - инициализируем правильно
+    if constexpr (detail::is_matrix_v<ResultType>) {
+        if (vec.size() > 0) {
+            // Получаем размер блока
+            int block_rows = 1, block_cols = 1;
+            if constexpr (detail::is_matrix_v<T>) {
+                block_rows = vec[0].get_rows();
+                block_cols = vec[0].get_cols();
+            }
+            
+            // Создаем нулевые блоки правильного размера
+            auto zero_block = ResultType::Zero(block_rows, block_cols);
+            for (int i = 0; i < vec.size(); ++i) {
+                result[i] = zero_block;
+            }
+        }
     }
+    
+    for (int i = 0; i < vec.size(); ++i) {
+        if constexpr (detail::is_matrix_v<T>) {
+            // Для блочных матриц используем create_scalar
+            auto scalar_cast = Matrix<T>::create_scalar(vec[i], scalar);
+            result[i] = vec[i] / scalar_cast;
+        } else {
+            result[i] = vec[i] / scalar;
+        }
+    }
+    
     return result;
 }
 
@@ -87,43 +139,83 @@ template<typename T> const T &Vector<T>::operator[](int i) const {
 }
 
 template<typename T, typename U>
-auto operator*(const Matrix<T> &A, const Vector<U> &vec) {
-    if (A.get_cols() != vec.size()) {
-        throw std::invalid_argument("Matrix columns must match vector size for multiplication");
+auto operator*(const Matrix<T> &matrix, const Vector<U> &vec) {
+    if (matrix.get_cols() != vec.size()) {
+        throw std::invalid_argument("Matrix and vector dimensions don't match for multiplication");
     }
     
-    using ResultType = typename detail::matrix_common_type<T, U>::type;
+    using CommonType = typename detail::matrix_common_type<T, U>::type;
+    Vector<CommonType> result(matrix.get_rows());
     
-    Vector<ResultType> result(A.get_rows());
-    
-    for (int i = 0; i < A.get_rows(); ++i) {
-        ResultType sum = ResultType{};
-        for (int j = 0; j < A.get_cols(); ++j) {
-            sum = sum + A(i, j) * vec[j];
+    // Для блочных матриц - инициализируем правильно
+    if constexpr (detail::is_matrix_v<CommonType>) {
+        if (matrix.get_rows() > 0) {
+            // Получаем размер блока
+            int block_rows = 1, block_cols = 1;
+            if constexpr (detail::is_matrix_v<T>) {
+                if (matrix.get_rows() > 0 && matrix.get_cols() > 0) {
+                    block_rows = matrix(0,0).get_rows();
+                    block_cols = matrix(0,0).get_cols();
+                }
+            } else if constexpr (detail::is_matrix_v<U>) {
+                if (vec.size() > 0) {
+                    block_rows = vec[0].get_rows();
+                    block_cols = vec[0].get_cols();
+                }
+            }
+            
+            // Создаем нулевые блоки правильного размера
+            auto zero_block = CommonType::Zero(block_rows, block_cols);
+            for (int i = 0; i < matrix.get_rows(); ++i) {
+                result[i] = zero_block;
+            }
         }
-        result[i] = sum;
+    }
+    
+    for (int i = 0; i < matrix.get_rows(); ++i) {
+        for (int k = 0; k < matrix.get_cols(); ++k) {
+            CommonType a_ik = static_cast<CommonType>(matrix(i, k));
+            CommonType vec_k = static_cast<CommonType>(vec[k]);
+            CommonType product = a_ik * vec_k;
+            result[i] = result[i] + product;
+        }
     }
     
     return result;
 }
 
-template<typename T, typename U>
-auto operator*(const Vector<T> &vec, const Matrix<U> &A) {
-    if (vec.size() != A.get_rows()) {
-        throw std::invalid_argument("Vector size must match matrix rows for multiplication");
-    }
-    
-    using ResultType = typename detail::matrix_common_type<T, U>::type;
-    
-    Vector<ResultType> result(A.get_cols());
-    
-    for (int j = 0; j < A.get_cols(); ++j) {
-        ResultType sum = ResultType{};
-        for (int i = 0; i < A.get_rows(); ++i) {
-            sum = sum + vec[i] * A(i, j);
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const Vector<T>& vec) {
+    if constexpr (detail::is_matrix_v<T>) {
+        os << "Vector of " << vec.size() << " blocks:\n";
+        for (int i = 0; i < vec.size(); ++i) {
+            os << "  [" << i << "]: " << vec[i].get_rows() << "x" << vec[i].get_cols();
+            if (vec[i].get_rows() <= 3 && vec[i].get_cols() <= 3) {
+                os << " = [";
+                for (int ri = 0; ri < vec[i].get_rows(); ++ri) {
+                    if (ri > 0) os << "     ";
+                    for (int cj = 0; cj < vec[i].get_cols(); ++cj) {
+                        if (cj > 0) os << " ";
+                        os << vec[i](ri, cj);
+                    }
+                    if (ri < vec[i].get_rows() - 1) os << "\n";
+                }
+                os << "]\n";
+            } else {
+                os << " matrix\n";
+            }
         }
-        result[j] = sum;
+    } else {
+        os << "[";
+        for (int i = 0; i < vec.size(); ++i) {
+            if (i > 0) os << ", ";
+            if constexpr (detail::is_complex_v<T>) {
+                os << "(" << vec[i].real() << "+" << vec[i].imag() << "i)";
+            } else {
+                os << vec[i];
+            }
+        }
+        os << "]";
     }
-    
-    return result;
+    return os;
 }

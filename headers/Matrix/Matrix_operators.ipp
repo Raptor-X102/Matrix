@@ -85,6 +85,20 @@ auto operator+(const Matrix<T> &lhs, const Matrix<U> &rhs) {
         DEBUG_PRINTF("right matrix: %dx%d\n", rhs.get_rows(), rhs.get_cols());
         lhs.detailed_print();
         rhs.detailed_print();
+
+        if constexpr (detail::is_matrix_v<T>) {
+            if (lhs.get_rows() > 0 && lhs.get_cols() > 0) {
+                DEBUG_PRINTF("left block at (0,0): %dx%d\n",
+                           lhs(0,0).get_rows(), lhs(0,0).get_cols());
+            }
+        }
+        if constexpr (detail::is_matrix_v<U>) {
+            if (rhs.get_rows() > 0 && rhs.get_cols() > 0) {
+                DEBUG_PRINTF("right block at (0,0): %dx%d\n",
+                           rhs(0,0).get_rows(), rhs(0,0).get_cols());
+            }
+        }
+
         throw std::invalid_argument("Matrix dimensions must match for addition");
     }
 

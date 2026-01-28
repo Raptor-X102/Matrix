@@ -12,7 +12,8 @@ std::pair<Matrix<ComputeType>, Matrix<ComputeType>> Matrix<T>::qr_decomposition(
     if constexpr (detail::is_matrix_v<ComputeType>) {
         int block_rows = 1;
         int block_cols = 1;
-        if (m > 0 && n > 0 && R(0,0).get_rows() > 0 && R(0,0).get_cols() > 0) {
+        if (m > 0 && n > 0) {
+            // Получаем размер блока из R
             block_rows = R(0,0).get_rows();
             block_cols = R(0,0).get_cols();
         }
@@ -88,27 +89,25 @@ Vector<ComputeType> Matrix<T>::householder_vector(const Vector<ComputeType>& x) 
     auto norm_x = x.norm();
     
     if (is_norm_zero(norm_x)) {
-        Vector<ComputeType> zero_vec(m);
+        Vector<ComputeType> zero_vec;
         if constexpr (detail::is_matrix_v<ComputeType>) {
             if (m > 0) {
                 auto block = x[0];
                 int block_rows = block.get_rows();
                 int block_cols = block.get_cols();
                 ComputeType zero_block = ComputeType::Zero(block_rows, block_cols);
-                for (int i = 0; i < m; ++i) {
-                    zero_vec[i] = zero_block;
-                }
+                zero_vec = Vector<ComputeType>(m, zero_block);
+            } else {
+                zero_vec = Vector<ComputeType>(0);
             }
         } else {
             auto zero_scalar = create_scalar(x[0], 0);
-            for (int i = 0; i < m; ++i) {
-                zero_vec[i] = zero_scalar;
-            }
+            zero_vec = Vector<ComputeType>(m, zero_scalar);
         }
         return zero_vec;
     }
     
-    Vector<ComputeType> e1(m);
+    Vector<ComputeType> e1;
     
     if constexpr (detail::is_matrix_v<ComputeType>) {
         if (m > 0) {
@@ -117,19 +116,17 @@ Vector<ComputeType> Matrix<T>::householder_vector(const Vector<ComputeType>& x) 
             int block_cols = block.get_cols();
             
             ComputeType zero_block = ComputeType::Zero(block_rows, block_cols);
-            for (int i = 0; i < m; ++i) {
-                e1[i] = zero_block;
-            }
+            e1 = Vector<ComputeType>(m, zero_block);
             
             ComputeType scalar_norm_block = ComputeType::Diagonal(block_rows, block_cols, 
                 create_scalar(block(0,0), norm_x));
             e1[0] = scalar_norm_block;
+        } else {
+            e1 = Vector<ComputeType>(0);
         }
     } else {
         auto zero_scalar = create_scalar(x[0], 0);
-        for (int i = 0; i < m; ++i) {
-            e1[i] = zero_scalar;
-        }
+        e1 = Vector<ComputeType>(m, zero_scalar);
         e1[0] = norm_x;
     }
     
@@ -137,22 +134,20 @@ Vector<ComputeType> Matrix<T>::householder_vector(const Vector<ComputeType>& x) 
     auto norm_v = v.norm();
     
     if (is_norm_zero(norm_v)) {
-        Vector<ComputeType> zero_vec(m);
+        Vector<ComputeType> zero_vec;
         if constexpr (detail::is_matrix_v<ComputeType>) {
             if (m > 0) {
                 auto block = x[0];
                 int block_rows = block.get_rows();
                 int block_cols = block.get_cols();
                 ComputeType zero_block = ComputeType::Zero(block_rows, block_cols);
-                for (int i = 0; i < m; ++i) {
-                    zero_vec[i] = zero_block;
-                }
+                zero_vec = Vector<ComputeType>(m, zero_block);
+            } else {
+                zero_vec = Vector<ComputeType>(0);
             }
         } else {
             auto zero_scalar = create_scalar(x[0], 0);
-            for (int i = 0; i < m; ++i) {
-                zero_vec[i] = zero_scalar;
-            }
+            zero_vec = Vector<ComputeType>(m, zero_scalar);
         }
         return zero_vec;
     }
@@ -177,6 +172,15 @@ Matrix<ComputeType> Matrix<T>::hessenberg_form() const {
     auto H = this->template cast_to<ComputeType>();
     int n = rows_;
     
+    DEBUG_PRINTF("Hessenberg form: n=%d\n", n);
+    
+    if constexpr (detail::is_matrix_v<ComputeType>) {
+        if (n > 0) {
+            DEBUG_PRINTF("H block size: %dx%d\n", 
+                       H(0,0).get_rows(), H(0,0).get_cols());
+        }
+    }   
+
     for (int k = 0; k < n - 2; ++k) {
         Vector<ComputeType> x(n - k - 1);
         for (int i = k + 1; i < n; ++i) {
@@ -273,7 +277,24 @@ template<typename ComputeType>
 Vector<ComputeType> Matrix<T>::back_substitution(const Matrix<ComputeType>& R, 
                                                 const Vector<ComputeType>& y) const {
     int n = R.get_rows();
-    Vector<ComputeType> x(n);
+    Vector<ComputeType> x;
+    
+    if constexpr (detail::is_matrix_v<ComputeType>) {
+        if (n > 0) {
+            int block_rows = 1;
+            int block_cols = 1;
+            if (R(0,0).get_rows() > 0 && R(0,0).get_cols() > 0) {
+                block_rows = R(0,0).get_rows();
+                block_cols = R(0,0).get_cols();
+            }
+            ComputeType zero_block = ComputeType::Zero(block_rows, block_cols);
+            x = Vector<ComputeType>(n, zero_block);
+        } else {
+            x = Vector<ComputeType>(0);
+        }
+    } else {
+        x = Vector<ComputeType>(n);
+    }
     
     for (int i = n - 1; i >= 0; --i) {
         ComputeType sum;
