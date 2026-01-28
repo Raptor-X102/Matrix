@@ -153,7 +153,7 @@ public:
     using norm_return_type = typename detail::norm_return_type_impl<T>::type;
 
     norm_return_type frobenius_norm() const;
-    T frobenius_norm_squared() const;
+    norm_return_type frobenius_norm_squared() const;
     T trace() const;
 
     template<typename U = T>
@@ -189,7 +189,7 @@ public:
     std::vector<eigen_return_type<T>> eigenvalues(int max_iterations = 1000) const;
     Matrix<eigen_return_type<T>> eigenvectors(int max_iterations = 1000) const;
     std::pair<std::vector<eigen_return_type<T>>, Matrix<eigen_return_type<T>>>
-    eigen(int max_iterations = 1000) const;
+    eigen(int max_iterations = Default_max_iterations) const;
     
     // Вспомогательные публичные методы
     template<typename ComputeType = eigen_return_type<T>>
@@ -325,7 +325,7 @@ private:
     template<typename ComputeType>
     typename Matrix<ComputeType>::norm_return_type off_diagonal_norm(const Matrix<ComputeType>& H) const;
 
-    static constexpr int Default_max_iterations = 1000;
+    static constexpr int Default_max_iterations = 10000;
 
     static std::vector<T> create_controlled_diagonal(int size,
                                                      T min_val,

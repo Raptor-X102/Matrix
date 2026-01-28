@@ -1,7 +1,5 @@
 #include "Vector.hpp"
 
-// ====================== QR DECOMPOSITION ======================
-
 template<typename T>
 template<typename ComputeType>
 std::pair<Matrix<ComputeType>, Matrix<ComputeType>> Matrix<T>::qr_decomposition() const {
@@ -54,15 +52,7 @@ std::pair<Matrix<ComputeType>, Matrix<ComputeType>> Matrix<T>::qr_decomposition(
                 col[i - k] = R(i, j);
             }
             
-            ComputeType dot;
-            if constexpr (detail::is_complex_v<ComputeType>) {
-                dot = ComputeType(0);
-                for (int i = 0; i < m - k; ++i) {
-                    dot += std::conj(v[i]) * col[i];
-                }
-            } else {
-                dot = col.dot(v);
-            }
+            ComputeType dot = col.dot(v);
             
             for (int i = k; i < m; ++i) {
                 R(i, j) = R(i, j) - v[i - k] * dot * two_scalar;
@@ -75,15 +65,7 @@ std::pair<Matrix<ComputeType>, Matrix<ComputeType>> Matrix<T>::qr_decomposition(
                 col[i - k] = Q(i, j);
             }
             
-            ComputeType dot;
-            if constexpr (detail::is_complex_v<ComputeType>) {
-                dot = ComputeType(0);
-                for (int i = 0; i < m - k; ++i) {
-                    dot += std::conj(v[i]) * col[i];
-                }
-            } else {
-                dot = col.dot(v);
-            }
+            ComputeType dot = col.dot(v);
             
             for (int i = k; i < m; ++i) {
                 Q(i, j) = Q(i, j) - v[i - k] * dot * two_scalar;
@@ -93,8 +75,6 @@ std::pair<Matrix<ComputeType>, Matrix<ComputeType>> Matrix<T>::qr_decomposition(
     
     return {Q.transpose(), R};
 }
-
-// ====================== HOUSEHOLDER ======================
 
 template<typename T>
 template<typename ComputeType>
@@ -107,60 +87,89 @@ Vector<ComputeType> Matrix<T>::householder_vector(const Vector<ComputeType>& x) 
     
     auto norm_x = x.norm();
     
-    if constexpr (detail::is_matrix_v<ComputeType>) {
-        auto e1 = Vector<ComputeType>(m);
-        
-        int block_rows = 1, block_cols = 1;
-        if (m > 0) {
-            auto sample = x[0];
-            if constexpr (detail::is_matrix_v<decltype(sample)>) {
-                block_rows = sample.get_rows();
-                block_cols = sample.get_cols();
+    if (is_norm_zero(norm_x)) {
+        Vector<ComputeType> zero_vec(m);
+        if constexpr (detail::is_matrix_v<ComputeType>) {
+            if (m > 0) {
+                auto block = x[0];
+                int block_rows = block.get_rows();
+                int block_cols = block.get_cols();
+                ComputeType zero_block = ComputeType::Zero(block_rows, block_cols);
+                for (int i = 0; i < m; ++i) {
+                    zero_vec[i] = zero_block;
+                }
+            }
+        } else {
+            auto zero_scalar = create_scalar(x[0], 0);
+            for (int i = 0; i < m; ++i) {
+                zero_vec[i] = zero_scalar;
             }
         }
-        
-        ComputeType identity_block;
-        if constexpr (detail::is_matrix_v<ComputeType>) {
-            using InnerType = typename ComputeType::value_type;
-            identity_block = ComputeType::Identity(block_rows, block_cols);
-        } else {
-            identity_block = ComputeType{1};
-        }
-        
-        e1[0] = identity_block * norm_x;
-        
-        auto v = x + e1;
-        auto norm_v = v.norm();
-        
-        if (is_norm_zero(norm_v)) {
-            return Vector<ComputeType>(m);
-        }
-        
-        v = v / norm_v;
-        
-        return v;
-    } else {
-        if (is_norm_zero(norm_x)) {
-            return Vector<ComputeType>(m);
-        }
-        
-        auto e1 = Vector<ComputeType>(m);
-        e1[0] = norm_x;
-        
-        auto v = x + e1;
-        auto norm_v = v.norm();
-        
-        if (is_norm_zero(norm_v)) {
-            return Vector<ComputeType>(m);
-        }
-        
-        v = v / norm_v;
-        
-        return v;
+        return zero_vec;
     }
+    
+    Vector<ComputeType> e1(m);
+    
+    if constexpr (detail::is_matrix_v<ComputeType>) {
+        if (m > 0) {
+            auto block = x[0];
+            int block_rows = block.get_rows();
+            int block_cols = block.get_cols();
+            
+            ComputeType zero_block = ComputeType::Zero(block_rows, block_cols);
+            for (int i = 0; i < m; ++i) {
+                e1[i] = zero_block;
+            }
+            
+            ComputeType scalar_norm_block = ComputeType::Diagonal(block_rows, block_cols, 
+                create_scalar(block(0,0), norm_x));
+            e1[0] = scalar_norm_block;
+        }
+    } else {
+        auto zero_scalar = create_scalar(x[0], 0);
+        for (int i = 0; i < m; ++i) {
+            e1[i] = zero_scalar;
+        }
+        e1[0] = norm_x;
+    }
+    
+    auto v = x + e1;
+    auto norm_v = v.norm();
+    
+    if (is_norm_zero(norm_v)) {
+        Vector<ComputeType> zero_vec(m);
+        if constexpr (detail::is_matrix_v<ComputeType>) {
+            if (m > 0) {
+                auto block = x[0];
+                int block_rows = block.get_rows();
+                int block_cols = block.get_cols();
+                ComputeType zero_block = ComputeType::Zero(block_rows, block_cols);
+                for (int i = 0; i < m; ++i) {
+                    zero_vec[i] = zero_block;
+                }
+            }
+        } else {
+            auto zero_scalar = create_scalar(x[0], 0);
+            for (int i = 0; i < m; ++i) {
+                zero_vec[i] = zero_scalar;
+            }
+        }
+        return zero_vec;
+    }
+    
+    if constexpr (detail::is_matrix_v<ComputeType>) {
+        using InnerType = typename ComputeType::value_type;
+        InnerType norm_v_scalar = create_scalar(v[0](0,0), norm_v);
+        
+        for (int i = 0; i < m; ++i) {
+            v[i] = v[i] / norm_v_scalar;
+        }
+    } else {
+        v = v / norm_v;
+    }
+    
+    return v;
 }
-
-// ====================== HESSENBERG FORM ======================
 
 template<typename T>
 template<typename ComputeType>
@@ -202,10 +211,25 @@ void Matrix<T>::apply_householder_left(Matrix<ComputeType>& A,
             col[i - k] = A(i, j);
         }
         
-        auto dot = col.dot(v);
+        ComputeType dot;
+        if constexpr (detail::is_complex_v<ComputeType>) {
+            dot = ComputeType(0);
+            for (int i = 0; i < n - k; ++i) {
+                dot += std::conj(v[i]) * col[i];
+            }
+        } else {
+            dot = col.dot(v);
+        }
+        
+        ComputeType scale_factor;
+        if constexpr (detail::is_matrix_v<ComputeType>) {
+            scale_factor = two_scalar * dot;
+        } else {
+            scale_factor = dot * two_scalar;
+        }
         
         for (int i = k; i < n; ++i) {
-            A(i, j) = A(i, j) - v[i - k] * dot * two_scalar;
+            A(i, j) = A(i, j) - v[i - k] * scale_factor;
         }
     }
 }
@@ -226,15 +250,23 @@ void Matrix<T>::apply_householder_right(Matrix<ComputeType>& A,
             row[j - k] = A(i, j);
         }
         
-        auto dot = row.dot(v);
+        ComputeType dot;
+        if constexpr (detail::is_complex_v<ComputeType>) {
+            dot = ComputeType(0);
+            for (int idx = 0; idx < m - k; ++idx) {
+                dot += std::conj(v[idx]) * row[idx];
+            }
+        } else {
+            dot = row.dot(v);
+        }
+        
+        ComputeType scale_factor = dot * two_scalar;
         
         for (int j = k; j < m; ++j) {
-            A(i, j) = A(i, j) - v[j - k] * dot * two_scalar;
+            A(i, j) = A(i, j) - v[j - k] * scale_factor;
         }
     }
 }
-
-// ====================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ======================
 
 template<typename T>
 template<typename ComputeType>
@@ -312,8 +344,37 @@ std::vector<ComputeType> Matrix<T>::extract_eigenvalues_2x2(const Matrix<Compute
     std::vector<ComputeType> eigenvalues;
     
     if constexpr (detail::is_matrix_v<ComputeType>) {
-        eigenvalues.push_back(H(i, i));
-        eigenvalues.push_back(H(i + 1, i + 1));
+        using InnerType = typename ComputeType::value_type;
+        
+        auto a = H(i, i);
+        auto b = H(i, i + 1);
+        auto c = H(i + 1, i);
+        auto d = H(i + 1, i + 1);
+        
+        if constexpr (detail::is_matrix_v<InnerType>) {
+            eigenvalues.push_back(H(i, i));
+            eigenvalues.push_back(H(i + 1, i + 1));
+        } else {
+            auto trace = a + d;
+            auto det_val = a * d - b * c;
+            
+            try {
+                auto I = ComputeType::Identity(a.get_rows(), a.get_cols());
+                auto discriminant = trace * trace - create_scalar(I, 4) * det_val;
+                
+                if constexpr (detail::has_sqrt_v<decltype(discriminant)>) {
+                    auto sqrt_disc = discriminant.sqrt();
+                    eigenvalues.push_back((trace + sqrt_disc) / create_scalar(I, 2));
+                    eigenvalues.push_back((trace - sqrt_disc) / create_scalar(I, 2));
+                } else {
+                    eigenvalues.push_back(H(i, i));
+                    eigenvalues.push_back(H(i + 1, i + 1));
+                }
+            } catch (...) {
+                eigenvalues.push_back(H(i, i));
+                eigenvalues.push_back(H(i + 1, i + 1));
+            }
+        }
     } else {
         auto a = H(i, i);
         auto b = H(i, i + 1);
@@ -321,19 +382,19 @@ std::vector<ComputeType> Matrix<T>::extract_eigenvalues_2x2(const Matrix<Compute
         auto d = H(i + 1, i + 1);
         
         auto trace = a + d;
-        auto det = a * d - b * c;
+        auto det_val = a * d - b * c;
         
         using std::sqrt;
         
         if constexpr (detail::is_complex_v<ComputeType>) {
             using RealType = typename ComputeType::value_type;
-            auto discriminant = trace * trace - RealType(4) * det;
+            auto discriminant = trace * trace - RealType(4) * det_val;
             auto sqrt_disc = sqrt(discriminant);
             eigenvalues.push_back((trace + sqrt_disc) / RealType(2));
             eigenvalues.push_back((trace - sqrt_disc) / RealType(2));
         } 
         else if constexpr (std::is_floating_point_v<ComputeType>) {
-            auto discriminant = trace * trace - ComputeType(4) * det;
+            auto discriminant = trace * trace - ComputeType(4) * det_val;
             
             if (discriminant >= ComputeType(0)) {
                 auto sqrt_disc = sqrt(discriminant);
@@ -354,8 +415,6 @@ std::vector<ComputeType> Matrix<T>::extract_eigenvalues_2x2(const Matrix<Compute
     
     return eigenvalues;
 }
-
-// ====================== ОСНОВНЫЕ ПУБЛИЧНЫЕ МЕТОДЫ ======================
 
 template<typename T>
 template<typename ComputeType>
@@ -447,8 +506,6 @@ Matrix<T>::eigen_qr(int max_iterations) const {
     
     return {eigvals, eigvecs};
 }
-
-// ====================== УПРОЩЁННЫЕ ИНТЕРФЕЙСЫ ======================
 
 template<typename T>
 std::vector<typename Matrix<T>::template eigen_return_type<T>> 

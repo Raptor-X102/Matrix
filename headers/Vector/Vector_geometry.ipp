@@ -3,13 +3,28 @@ template<typename T> T Vector<T>::dot(const Vector<T> &other) const {
         throw std::invalid_argument("Vectors must have same size for dot product");
     }
 
+    if (size() == 0) {
+        if constexpr (detail::is_matrix_v<T>) {
+            return T(0, 0);
+        } else {
+            return T{0};
+        }
+    }
+
 #if defined(__AVX__) || defined(__AVX2__)
     if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>) {
         return avx_dot_impl(other);
     }
 #endif
     
-    T result = this->zero_element(1, 1);
+    T result;
+    if constexpr (detail::is_matrix_v<T>) {
+        int block_rows = (*this)(0).get_rows();
+        int block_cols = (*this)(0).get_cols();
+        result = T::Zero(block_rows, block_cols);
+    } else {
+        result = T{0};
+    }
     
     if constexpr (detail::is_complex_v<T>) {
         for (int i = 0; i < size(); ++i) {
@@ -35,22 +50,55 @@ template<typename T> Vector<T> Vector<T>::cross(const Vector<T> &other) const {
     return result;
 }
 
-template<typename T> T Vector<T>::norm() const {
-    T dot_val = this->dot(*this);
-    
-    if constexpr (detail::is_complex_v<T>) {
-        using RealType = typename T::value_type;
-        RealType real_dot_val = dot_val.real();
+template<typename T>
+typename Vector<T>::norm_return_type Vector<T>::norm() const {
+    if constexpr (detail::is_matrix_v<T>) {
+        if (size() == 0) {
+            return norm_return_type{0};
+        }
+        
+        using InnerType = typename T::value_type;
+        using InnerNormType = typename Matrix<InnerType>::norm_return_type;
+        
+        InnerNormType sum = InnerNormType(0);
+        
+        for (int i = 0; i < size(); ++i) {
+            auto block_norm_sq = (*this)(i).frobenius_norm_squared();
+            sum = sum + block_norm_sq;
+        }
+        
         using std::sqrt;
-        return T(sqrt(real_dot_val), RealType(0));
-    } else if constexpr (std::is_floating_point_v<T>) {
-        using std::sqrt;
-        return sqrt(dot_val);
-    } else if constexpr (detail::has_sqrt_v<T>) {
-        return sqrt(dot_val);
+        
+        if constexpr (std::is_same_v<InnerNormType, int>) {
+            return static_cast<int>(std::sqrt(static_cast<double>(sum)));
+        } else if constexpr (std::is_floating_point_v<InnerNormType>) {
+            return sqrt(sum);
+        } else if constexpr (detail::is_complex_v<InnerNormType>) {
+            return sqrt(sum);
+        } else {
+            return sqrt(sum);
+        }
     } else {
-        return dot_val;
+        T dot_val = this->dot(*this);
+        
+        if constexpr (detail::is_complex_v<T>) {
+            using std::sqrt;
+            return sqrt(dot_val);
+        } else if constexpr (std::is_floating_point_v<T>) {
+            using std::sqrt;
+            return sqrt(dot_val);
+        } else if constexpr (std::is_same_v<T, int>) {
+            return static_cast<int>(std::sqrt(static_cast<double>(dot_val)));
+        } else if constexpr (detail::has_sqrt_v<T>) {
+            return sqrt(dot_val);
+        } else {
+            return static_cast<norm_return_type>(dot_val);
+        }
     }
+}
+
+template<typename T> T Vector<T>::norm_squared() const {
+    return this->dot(*this);
 }
 
 template<typename T> T Vector<T>::angle(const Vector<T> &other) const {
@@ -150,10 +198,6 @@ bool Vector<T>::is_collinear(const Vector<T> &other, T tolerance) const {
         T cos_angle = this->dot(other) / (this->norm() * other.norm());
         return this->is_equal(cos_angle, identity_element(1, 1));
     }
-}
-
-template<typename T> T Vector<T>::norm_squared() const {
-    return this->dot(*this);
 }
 
 template<typename T> Vector<T> Vector<T>::normalized() const {

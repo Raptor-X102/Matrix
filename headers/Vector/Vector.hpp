@@ -48,9 +48,10 @@ public:
 
     T dot(const Vector<T> &other) const;
     Vector<T> cross(const Vector<T> &other) const;
-    T norm() const;
-    T norm_squared() const;
-    Vector<T> normalized() const;
+    using norm_return_type = typename detail::norm_return_type_impl<T>::type;
+    
+    norm_return_type norm() const;
+    T norm_squared() const;    Vector<T> normalized() const;
     void normalize();
     T angle(const Vector<T> &other) const;
     Vector<T> projection(const Vector<T> &other) const;
