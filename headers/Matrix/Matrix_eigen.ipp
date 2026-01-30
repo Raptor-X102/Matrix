@@ -6,9 +6,7 @@ Matrix<ComputeType> Matrix<T>::balance_matrix() const {
     auto A = this->template cast_to<ComputeType>();
     int n = rows_;
 
-    // Балансировка только для скалярных типов
     if constexpr (!detail::is_matrix_v<ComputeType>) {
-        // Для комплексных и вещественных чисел
         if constexpr (detail::is_complex_v<ComputeType>
                       || std::is_floating_point_v<ComputeType>) {
             using RealType = std::conditional_t<detail::is_complex_v<ComputeType>,
@@ -52,7 +50,6 @@ Matrix<ComputeType> Matrix<T>::balance_matrix() const {
                             col_norm /= sqrdx;
                         }
 
-                        // Все сравнения с вещественными числами
                         if ((row_norm + col_norm) < balance_threshold * s * f) {
                             converged = false;
 
@@ -68,9 +65,7 @@ Matrix<ComputeType> Matrix<T>::balance_matrix() const {
                 }
             }
         }
-        // Для целочисленных типов - упрощенная балансировка
         else if constexpr (std::is_integral_v<ComputeType>) {
-            // Просто возвращаем исходную матрицу для целых чисел
         }
     }
 
@@ -90,7 +85,6 @@ std::pair<Matrix<ComputeType>, Matrix<ComputeType>> Matrix<T>::qr_decomposition(
         int block_rows = 1;
         int block_cols = 1;
         if (m > 0 && n > 0) {
-            // Получаем размер блока из R
             block_rows = R(0, 0).get_rows();
             block_cols = R(0, 0).get_cols();
         }
@@ -378,7 +372,7 @@ Vector<ComputeType> Matrix<T>::back_substitution(const Matrix<ComputeType> &R,
         x = Vector<ComputeType>(n);
     }
 
-    for (int i = n - 1; i >= 0; --i) { // ИСПРАВЛЕНО: --i вместо ++i
+    for (int i = n - 1; i >= 0; --i) { 
         ComputeType sum;
         if constexpr (detail::is_matrix_v<ComputeType>) {
             int block_rows = 1;
@@ -443,34 +437,36 @@ Vector<ComputeType> Matrix<T>::inverse_iteration(const Matrix<ComputeType> &A,
 
 template<typename T>
 template<typename ComputeType>
-std::vector<ComputeType> Matrix<T>::extract_eigenvalues_2x2(const Matrix<ComputeType>& H, int i) const {
+std::vector<ComputeType> Matrix<T>::extract_eigenvalues_2x2(const Matrix<ComputeType> &H,
+                                                            int i) const {
     std::vector<ComputeType> eigenvalues;
-    
+
     if constexpr (detail::is_matrix_v<ComputeType>) {
         using InnerType = typename ComputeType::value_type;
-        
+
         auto a = H(i, i);
         auto b = H(i, i + 1);
         auto c = H(i + 1, i);
         auto d = H(i + 1, i + 1);
-        
+
         if constexpr (detail::is_matrix_v<InnerType>) {
-            // Для блочных матриц высокого уровня - простой подход
             eigenvalues.push_back(H(i, i));
             eigenvalues.push_back(H(i + 1, i + 1));
         } else {
             auto trace = a + d;
             auto det_val = a * d - b * c;
-            
+
             try {
                 auto I = ComputeType::Identity(a.get_rows(), a.get_cols());
-                auto scalar_two = create_scalar(a(0,0), 2);
+                auto scalar_two = create_scalar(a(0, 0), 2);
                 auto discriminant = trace * trace - scalar_two * scalar_two * det_val;
-                
+
                 if constexpr (detail::has_sqrt_v<decltype(discriminant)>) {
                     auto sqrt_disc = discriminant.sqrt();
-                    eigenvalues.push_back((trace + sqrt_disc) / (scalar_two * scalar_two));
-                    eigenvalues.push_back((trace - sqrt_disc) / (scalar_two * scalar_two));
+                    eigenvalues.push_back((trace + sqrt_disc)
+                                          / (scalar_two * scalar_two));
+                    eigenvalues.push_back((trace - sqrt_disc)
+                                          / (scalar_two * scalar_two));
                 } else {
                     eigenvalues.push_back(H(i, i));
                     eigenvalues.push_back(H(i + 1, i + 1));
@@ -485,79 +481,72 @@ std::vector<ComputeType> Matrix<T>::extract_eigenvalues_2x2(const Matrix<Compute
         auto b = H(i, i + 1);
         auto c = H(i + 1, i);
         auto d = H(i + 1, i + 1);
-        
+
         auto trace = a + d;
         auto det_val = a * d - b * c;
-        
+
         using std::sqrt;
-        
+
         if constexpr (detail::is_complex_v<ComputeType>) {
             using RealType = typename ComputeType::value_type;
             auto discriminant = trace * trace - RealType(4) * det_val;
             auto sqrt_disc = sqrt(discriminant);
             eigenvalues.push_back((trace + sqrt_disc) / RealType(2));
             eigenvalues.push_back((trace - sqrt_disc) / RealType(2));
-        } 
-        else if constexpr (std::is_floating_point_v<ComputeType>) {
+        } else if constexpr (std::is_floating_point_v<ComputeType>) {
             auto discriminant = trace * trace - ComputeType(4) * det_val;
-            
-            // Всегда используем комплексные числа для вычисления корня
+
             using ComplexType = std::complex<ComputeType>;
             auto sqrt_disc = sqrt(ComplexType(discriminant));
-            eigenvalues.push_back(static_cast<ComputeType>((trace + sqrt_disc) / ComputeType(2)));
-            eigenvalues.push_back(static_cast<ComputeType>((trace - sqrt_disc) / ComputeType(2)));
-        }
-        else if constexpr (std::is_integral_v<ComputeType>) {
-            // Для целых чисел - простой подход
+            eigenvalues.push_back(
+                static_cast<ComputeType>((trace + sqrt_disc) / ComputeType(2)));
+            eigenvalues.push_back(
+                static_cast<ComputeType>((trace - sqrt_disc) / ComputeType(2)));
+        } else if constexpr (std::is_integral_v<ComputeType>) {
             eigenvalues.push_back(H(i, i));
             eigenvalues.push_back(H(i + 1, i + 1));
-        }
-        else {
-            // Для других типов
+        } else {
             eigenvalues.push_back(H(i, i));
             eigenvalues.push_back(H(i + 1, i + 1));
         }
     }
-    
+
     return eigenvalues;
 }
 
 template<typename T>
 template<typename ComputeType>
-Matrix<ComputeType> Matrix<T>::eigenvectors_2x2(const Matrix<ComputeType>& A, 
-                                               const std::vector<ComputeType>& eigenvalues) const {
+Matrix<ComputeType>
+Matrix<T>::eigenvectors_2x2(const Matrix<ComputeType> &A,
+                            const std::vector<ComputeType> &eigenvalues) const {
     Matrix<ComputeType> V(2, 2);
-    
+
     if constexpr (detail::is_matrix_v<ComputeType>) {
-        // Для блочных матриц
-        if (A.get_rows() > 0 && A(0,0).get_rows() > 0) {
-            int block_rows = A(0,0).get_rows();
-            int block_cols = A(0,0).get_cols();
-            
+        if (A.get_rows() > 0 && A(0, 0).get_rows() > 0) {
+            int block_rows = A(0, 0).get_rows();
+            int block_cols = A(0, 0).get_cols();
+
             auto zero_block = ComputeType::Zero(block_rows, block_cols);
             auto identity_block = ComputeType::Identity(block_rows, block_cols);
-            
-            // Инициализируем нулями
+
             for (int i = 0; i < 2; ++i) {
                 for (int j = 0; j < 2; ++j) {
                     V(i, j) = zero_block;
                 }
             }
-            
+
             for (size_t i = 0; i < eigenvalues.size(); ++i) {
                 auto lambda = eigenvalues[i];
-                
-                // Создаем единичную матрицу
-                auto I_mat = Matrix<ComputeType>::BlockIdentity(2, 2, block_rows, block_cols);
-                // A - λI - должно работать, так как λ - скаляр (внутренний тип)
+
+                auto I_mat =
+                    Matrix<ComputeType>::BlockIdentity(2, 2, block_rows, block_cols);
                 auto B = A - I_mat * lambda;
-                
-                // Ищем собственный вектор
+
                 auto b00 = B(0, 0);
                 auto b01 = B(0, 1);
                 auto b10 = B(1, 0);
                 auto b11 = B(1, 1);
-                
+
                 if (!is_norm_zero(b01)) {
                     try {
                         V(0, i) = identity_block;
@@ -578,18 +567,17 @@ Matrix<ComputeType> Matrix<T>::eigenvectors_2x2(const Matrix<ComputeType>& A,
             }
         }
     } else {
-        // Для скалярных типов
         for (size_t i = 0; i < eigenvalues.size(); ++i) {
             auto lambda = eigenvalues[i];
             auto B = A - Matrix<ComputeType>::Identity(2) * lambda;
-            
+
             auto b00 = B(0, 0);
             auto b01 = B(0, 1);
             auto b10 = B(1, 0);
             auto b11 = B(1, 1);
-            
+
             ComputeType v0, v1;
-            
+
             if (!Matrix<ComputeType>::is_zero(b01)) {
                 v0 = create_scalar(b00, 1.0);
                 v1 = -b00 / b01;
@@ -600,20 +588,19 @@ Matrix<ComputeType> Matrix<T>::eigenvectors_2x2(const Matrix<ComputeType>& A,
                 v0 = (i == 0) ? create_scalar(b00, 1.0) : create_scalar(b00, 0.0);
                 v1 = (i == 1) ? create_scalar(b00, 1.0) : create_scalar(b00, 0.0);
             }
-            
-            // Нормализуем
+
             using std::sqrt;
             auto norm = sqrt(v0 * v0 + v1 * v1);
             if (!Matrix<ComputeType>::is_zero(norm)) {
                 v0 = v0 / norm;
                 v1 = v1 / norm;
             }
-            
+
             V(0, i) = v0;
             V(1, i) = v1;
         }
     }
-    
+
     return V;
 }
 
@@ -623,14 +610,14 @@ std::vector<ComputeType> Matrix<T>::eigenvalues_qr(int max_iterations) const {
     if (rows_ != cols_) {
         throw std::invalid_argument("Eigenvalues require square matrix");
     }
-    
+
     Matrix<ComputeType> H;
     int n = rows_;
-    
-    // Для скалярных типов применяем балансировку
-    if constexpr (!detail::is_matrix_v<ComputeType> && 
-                  (std::is_floating_point_v<ComputeType> || detail::is_complex_v<ComputeType>)) {
-        if (n > 3) {  // Балансируем только матрицы размера > 3
+
+    if constexpr (!detail::is_matrix_v<ComputeType>
+                  && (std::is_floating_point_v<ComputeType>
+                      || detail::is_complex_v<ComputeType>)) {
+        if (n > 3) {
             H = this->template balance_matrix<ComputeType>();
         } else {
             H = this->template cast_to<ComputeType>();
@@ -638,102 +625,27 @@ std::vector<ComputeType> Matrix<T>::eigenvalues_qr(int max_iterations) const {
     } else {
         H = this->template cast_to<ComputeType>();
     }
-    
-    // Для матриц размера 1 или 2 используем прямое вычисление
+
     if (n == 1) {
         return {H(0, 0)};
     }
-    
+
     if (n == 2) {
         return extract_eigenvalues_2x2(H, 0);
     }
-    
-    // Приводим к форме Хессенберга
+
     H = H.template hessenberg_form<ComputeType>();
-    
-    // QR-алгоритм со сдвигом
+
     const int adjusted_iterations = max_iterations * 2;
-    
+
     for (int iter = 0; iter < adjusted_iterations; ++iter) {
-        // Вычисляем сдвиг для лучшей сходимости
-        // Сдвиг - всегда скаляр
-        auto shift = create_scalar(H(0,0), 0);
-        
-        if constexpr (!detail::is_matrix_v<ComputeType>) {
-            // Для скалярных типов вычисляем Wilkinson shift
-            if (n >= 2) {
-                auto a = H(n-2, n-2);
-                auto b = H(n-2, n-1);
-                auto c = H(n-1, n-2);
-                auto d = H(n-1, n-1);
-                
-                auto trace = a + d;
-                auto det_val = a * d - b * c;
-                
-                if constexpr (detail::is_complex_v<ComputeType>) {
-                    using RealType = typename ComputeType::value_type;
-                    auto discriminant = trace * trace - RealType(4) * det_val;
-                    
-                    using std::sqrt;
-                    auto sqrt_disc = sqrt(discriminant);
-                    auto lambda1 = (trace + sqrt_disc) / RealType(2);
-                    auto lambda2 = (trace - sqrt_disc) / RealType(2);
-                    
-                    using std::abs;
-                    auto dist1 = abs(lambda1 - d);
-                    auto dist2 = abs(lambda2 - d);
-                    shift = (dist1 < dist2) ? lambda1 : lambda2;
-                } 
-                else if constexpr (std::is_floating_point_v<ComputeType>) {
-                    auto discriminant = trace * trace - ComputeType(4) * det_val;
-                    
-                    using ComplexType = std::complex<ComputeType>;
-                    using std::abs;
-                    using std::sqrt;
-                    
-                    ComplexType sqrt_disc = sqrt(ComplexType(discriminant));
-                    ComplexType lambda1 = ComplexType((trace + sqrt_disc) / ComputeType(2));
-                    ComplexType lambda2 = ComplexType((trace - sqrt_disc) / ComputeType(2));
-                    
-                    auto dist1 = abs(lambda1 - ComplexType(d));
-                    auto dist2 = abs(lambda2 - ComplexType(d));
-                    shift = static_cast<ComputeType>((dist1 < dist2) ? lambda1.real() : lambda2.real());
-                }
-            }
-        }
-        
-        // QR-разложение со сдвигом
-        Matrix<ComputeType> I;
-        if constexpr (detail::is_matrix_v<ComputeType>) {
-            // Для блочных матриц
-            int block_rows = 1, block_cols = 1;
-            if (n > 0 && H(0,0).get_rows() > 0 && H(0,0).get_cols() > 0) {
-                block_rows = H(0,0).get_rows();
-                block_cols = H(0,0).get_cols();
-            }
-            I = Matrix<ComputeType>::BlockIdentity(n, n, block_rows, block_cols);
-        } else {
-            I = Matrix<ComputeType>::Identity(n);
-        }
-        
-        // H - shift * I
-        auto H_shifted = H - I * shift;
-        
         try {
-            auto [Q, R] = H_shifted.template qr_decomposition<ComputeType>();
-            // H = R * Q + shift * I
-            H = R * Q + I * shift;
+            auto [Q, R] = H.template qr_decomposition<ComputeType>();
+            H = R * Q;
         } catch (...) {
-            // Если QR разложение не удалось, пробуем без сдвига
-            try {
-                auto [Q, R] = H.template qr_decomposition<ComputeType>();
-                H = R * Q;
-            } catch (...) {
-                break;  // Если и это не работает, выходим
-            }
+            break; 
         }
-        
-        // Проверяем сходимость
+
         bool converged = true;
         for (int i = 0; i < n - 1; ++i) {
             auto off_diag = H(i, i + 1);
@@ -742,40 +654,36 @@ std::vector<ComputeType> Matrix<T>::eigenvalues_qr(int max_iterations) const {
                 break;
             }
         }
-        
+
         if (converged) {
             DEBUG_PRINTF("QR algorithm converged after %d iterations\n", iter + 1);
             break;
         }
     }
-    
-    // Извлекаем собственные значения
+
     std::vector<ComputeType> eigenvalues;
     int i = 0;
-    
+
     while (i < n) {
         if (i == n - 1) {
-            // 1x1 блок
             eigenvalues.push_back(H(i, i));
             i++;
         } else {
             auto off_diag = H(i, i + 1);
-            
+
             bool is_zero_off_diag = is_norm_zero(off_diag);
-            
+
             if (is_zero_off_diag) {
-                // Диагональный элемент
                 eigenvalues.push_back(H(i, i));
                 i++;
             } else {
-                // 2x2 блок
                 auto eig_2x2 = this->template extract_eigenvalues_2x2(H, i);
                 eigenvalues.insert(eigenvalues.end(), eig_2x2.begin(), eig_2x2.end());
                 i += 2;
             }
         }
     }
-    
+
     return eigenvalues;
 }
 
@@ -801,12 +709,10 @@ Matrix<ComputeType> Matrix<T>::eigenvectors_qr(int max_iterations) const {
 
     Matrix<ComputeType> H = A_orig;
 
-    // Приводим к форме Хессенберга
     if (n > 2) {
         H = H.template hessenberg_form<ComputeType>();
     }
 
-    // Итерационный QR-алгоритм для накопления преобразований
     const int adjusted_iterations = max_iterations;
 
     for (int iter = 0; iter < adjusted_iterations; ++iter) {
@@ -815,7 +721,6 @@ Matrix<ComputeType> Matrix<T>::eigenvectors_qr(int max_iterations) const {
             V = V * Q;
             H = R * Q;
 
-            // Проверяем сходимость
             bool converged = true;
             for (int i = 0; i < n - 1; ++i) {
                 auto off_diag = H(i, i + 1);
@@ -835,12 +740,9 @@ Matrix<ComputeType> Matrix<T>::eigenvectors_qr(int max_iterations) const {
         }
     }
 
-    // Для комплексных собственных значений нужна специальная обработка
     if constexpr (std::is_floating_point_v<ComputeType>) {
-        // Для вещественных матриц проверяем комплексные собственные пары
         auto eigvals = this->template eigenvalues_qr<ComputeType>(max_iterations);
 
-        // Проверяем наличие комплексных собственных значений
         bool has_complex = false;
         for (const auto &val : eigvals) {
             if (std::abs(std::imag(val)) > 1e-10) {
@@ -850,13 +752,11 @@ Matrix<ComputeType> Matrix<T>::eigenvectors_qr(int max_iterations) const {
         }
 
         if (has_complex) {
-            // Для комплексных собственных значений нужны комплексные собственные векторы
             using ComplexType = std::complex<ComputeType>;
             auto A_complex = this->template cast_to<ComplexType>();
             auto V_complex =
                 A_complex.template eigenvectors_qr<ComplexType>(max_iterations);
 
-            // Приводим обратно к вещественному типу (если возможно)
             return V_complex.template cast_to<ComputeType>();
         }
     }
@@ -887,47 +787,36 @@ Matrix<T>::eigenvectors(int max_iterations) const {
 }
 
 template<typename T>
-std::pair<std::vector<typename Matrix<T>::template eigen_return_type<T>>, 
-          Matrix<typename Matrix<T>::template eigen_return_type<T>>> 
+std::pair<std::vector<typename Matrix<T>::template eigen_return_type<T>>,
+          Matrix<typename Matrix<T>::template eigen_return_type<T>>>
 Matrix<T>::eigen(int max_iterations) const {
     using ComputeType = eigen_return_type<T>;
-    
-    // Увеличиваем число итераций для лучшей сходимости
-    int adjusted_max_iterations = max_iterations;
-    
-    if constexpr (std::is_floating_point_v<T> || std::is_integral_v<T>) {
-        adjusted_max_iterations = max_iterations * 2;
-    }
-    
+
     try {
-        return this->template eigen_qr<ComputeType>(adjusted_max_iterations);
-    } catch (const std::exception& e) {
-        // В случае ошибки пробуем альтернативный подход для маленьких матриц
+        return this->template eigen_qr<ComputeType>(max_iterations);
+    } catch (const std::exception &e) {
         if (rows_ <= 3) {
             auto A = this->template cast_to<ComputeType>();
-            
+
             if (rows_ == 1) {
-                // 1x1 матрица
                 std::vector<ComputeType> eigvals = {A(0, 0)};
                 Matrix<ComputeType> eigvecs(1, 1);
-                
+
                 if constexpr (detail::is_matrix_v<ComputeType>) {
-                    eigvecs(0, 0) = ComputeType::Identity(A(0,0).get_rows(), A(0,0).get_cols());
+                    eigvecs(0, 0) =
+                        ComputeType::Identity(A(0, 0).get_rows(), A(0, 0).get_cols());
                 } else {
-                    eigvecs(0, 0) = create_scalar(A(0,0), 1.0);
+                    eigvecs(0, 0) = create_scalar(A(0, 0), 1.0);
                 }
-                
+
                 return {eigvals, eigvecs};
-            }
-            else if (rows_ == 2) {
-                // 2x2 матрица
+            } else if (rows_ == 2) {
                 auto eigvals = extract_eigenvalues_2x2(A, 0);
                 auto eigvecs = eigenvectors_2x2(A, eigvals);
                 return {eigvals, eigvecs};
             }
         }
-        
-        // Если ничего не помогло, пробрасываем исключение
+
         throw;
     }
 }

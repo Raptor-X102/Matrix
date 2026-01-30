@@ -1589,7 +1589,7 @@ private:
         if constexpr (IsBlockMatrix) {
             ComputeType pivot_inv = pivot.inverse();
             for (int j = row; j < 2 * n; ++j) {
-                augmented(row, j) = pivot_inv * augmented(row, j); // УМНОЖЕНИЕ СЛЕВА!
+                augmented(row, j) = pivot_inv * augmented(row, j);
             }
         } else {
             for (int j = row; j < 2 * n; ++j) {

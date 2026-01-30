@@ -185,21 +185,24 @@ public:
     template<typename U = T>
     using eigen_return_type = typename detail::eigen_return_type_impl<U>::type;
 
-    std::vector<eigen_return_type<T>> eigenvalues(int max_iterations = 1000) const;
-    Matrix<eigen_return_type<T>> eigenvectors(int max_iterations = 1000) const;
+    std::vector<eigen_return_type<T>>
+    eigenvalues(int max_iterations = Default_max_iterations) const;
+    Matrix<eigen_return_type<T>>
+    eigenvectors(int max_iterations = Default_max_iterations) const;
     std::pair<std::vector<eigen_return_type<T>>, Matrix<eigen_return_type<T>>>
     eigen(int max_iterations = Default_max_iterations) const;
 
-    // Вспомогательные публичные методы
     template<typename ComputeType = eigen_return_type<T>>
-    std::vector<ComputeType> eigenvalues_qr(int max_iterations = 1000) const;
+    std::vector<ComputeType>
+    eigenvalues_qr(int max_iterations = Default_max_iterations) const;
 
     template<typename ComputeType = eigen_return_type<T>>
-    Matrix<ComputeType> eigenvectors_qr(int max_iterations = 1000) const;
+    Matrix<ComputeType>
+    eigenvectors_qr(int max_iterations = Default_max_iterations) const;
 
     template<typename ComputeType = eigen_return_type<T>>
     std::pair<std::vector<ComputeType>, Matrix<ComputeType>>
-    eigen_qr(int max_iterations = 1000) const;
+    eigen_qr(int max_iterations = Default_max_iterations) const;
 
     template<typename ComputeType = T>
     std::pair<Matrix<ComputeType>, Matrix<ComputeType>> qr_decomposition() const;
@@ -329,7 +332,7 @@ private:
     typename Matrix<ComputeType>::norm_return_type
     off_diagonal_norm(const Matrix<ComputeType> &H) const;
 
-    static constexpr int Default_max_iterations = 10000;
+    static constexpr int Default_max_iterations = 2000;
     template<typename ComputeType> Matrix<ComputeType> balance_matrix() const;
 
     static std::vector<T> create_controlled_diagonal(int size,

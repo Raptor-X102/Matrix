@@ -257,7 +257,7 @@ template<typename T> void test_eigen_for_type(int size) {
         std::cout << "\n3. COMPUTING EIGENVALUES AND EIGENVECTORS...\n";
         auto eigen_start = std::chrono::high_resolution_clock::now();
 
-        auto [eigenvalues, eigenvectors] = A.eigen();
+        auto [eigenvalues, eigenvectors] = A.eigen(100000);
 
         auto eigen_end = std::chrono::high_resolution_clock::now();
         double eigen_time =

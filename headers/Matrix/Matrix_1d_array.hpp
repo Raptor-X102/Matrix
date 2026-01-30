@@ -55,7 +55,6 @@ public:
     using value_type = T;
 
     std::optional<T> get_determinant() const { return determinant_; }
-    // === Конструкторы ===
     static Matrix_1d Square(int size) { return Matrix_1d(size, size); }
 
     static Matrix_1d Rectangular(int rows, int cols) { return Matrix_1d(rows, cols); }
@@ -350,7 +349,6 @@ public:
     int get_cols() const { return cols_; }
     int get_min_dim() const { return min_dim_; }
 
-    // === Исправленные is_zero ===
     static bool is_zero(T val) {
         if constexpr (std::is_floating_point_v<T>) {
             return std::abs(val) < epsilon;
@@ -458,7 +456,6 @@ public:
         return max_val_index;
     }
 
-    // Вспомогательная функция для подсчёта инверсий через merge sort
     int merge_and_count(std::vector<int> &arr, int left, int mid, int right) {
         std::vector<int> temp(right - left + 1);
         int i = left, j = mid + 1, k = 0, inv_count = 0;

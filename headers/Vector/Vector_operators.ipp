@@ -50,17 +50,14 @@ template<typename T, typename U> auto operator*(const Vector<T> &vec, const U &s
     using ResultType = typename detail::matrix_common_type<T, U>::type;
     Vector<ResultType> result(vec.size());
 
-    // Для блочных матриц - инициализируем правильно
     if constexpr (detail::is_matrix_v<ResultType>) {
         if (vec.size() > 0) {
-            // Получаем размер блока
             int block_rows = 1, block_cols = 1;
             if constexpr (detail::is_matrix_v<T>) {
                 block_rows = vec[0].get_rows();
                 block_cols = vec[0].get_cols();
             }
 
-            // Создаем нулевые блоки правильного размера
             auto zero_block = ResultType::Zero(block_rows, block_cols);
             for (int i = 0; i < vec.size(); ++i) {
                 result[i] = zero_block;
@@ -70,7 +67,6 @@ template<typename T, typename U> auto operator*(const Vector<T> &vec, const U &s
 
     for (int i = 0; i < vec.size(); ++i) {
         if constexpr (detail::is_matrix_v<T>) {
-            // Для блочных матриц используем create_scalar
             auto scalar_cast = Matrix<T>::create_scalar(vec[i], scalar);
             result[i] = vec[i] * scalar_cast;
         } else {
@@ -85,17 +81,14 @@ template<typename T, typename U> auto operator/(const Vector<T> &vec, const U &s
     using ResultType = typename detail::matrix_common_type<T, U>::type;
     Vector<ResultType> result(vec.size());
 
-    // Для блочных матриц - инициализируем правильно
     if constexpr (detail::is_matrix_v<ResultType>) {
         if (vec.size() > 0) {
-            // Получаем размер блока
             int block_rows = 1, block_cols = 1;
             if constexpr (detail::is_matrix_v<T>) {
                 block_rows = vec[0].get_rows();
                 block_cols = vec[0].get_cols();
             }
 
-            // Создаем нулевые блоки правильного размера
             auto zero_block = ResultType::Zero(block_rows, block_cols);
             for (int i = 0; i < vec.size(); ++i) {
                 result[i] = zero_block;
@@ -105,7 +98,6 @@ template<typename T, typename U> auto operator/(const Vector<T> &vec, const U &s
 
     for (int i = 0; i < vec.size(); ++i) {
         if constexpr (detail::is_matrix_v<T>) {
-            // Для блочных матриц используем create_scalar
             auto scalar_cast = Matrix<T>::create_scalar(vec[i], scalar);
             result[i] = vec[i] / scalar_cast;
         } else {
@@ -146,10 +138,8 @@ auto operator*(const Matrix<T> &matrix, const Vector<U> &vec) {
     using CommonType = typename detail::matrix_common_type<T, U>::type;
     Vector<CommonType> result(matrix.get_rows());
 
-    // Для блочных матриц - инициализируем правильно
     if constexpr (detail::is_matrix_v<CommonType>) {
         if (matrix.get_rows() > 0) {
-            // Получаем размер блока
             int block_rows = 1, block_cols = 1;
             if constexpr (detail::is_matrix_v<T>) {
                 if (matrix.get_rows() > 0 && matrix.get_cols() > 0) {
@@ -163,7 +153,6 @@ auto operator*(const Matrix<T> &matrix, const Vector<U> &vec) {
                 }
             }
 
-            // Создаем нулевые блоки правильного размера
             auto zero_block = CommonType::Zero(block_rows, block_cols);
             for (int i = 0; i < matrix.get_rows(); ++i) {
                 result[i] = zero_block;
