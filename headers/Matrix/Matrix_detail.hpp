@@ -164,21 +164,17 @@ namespace detail {
         using type = typename norm_return_type_impl<T>::type;
     };
 
-    template<typename T>
-    struct eigen_return_type_impl {
+    template<typename T> struct eigen_return_type_impl {
         using type = std::conditional_t<
-            is_builtin_integral_v<T> || std::is_same_v<T, float> || std::is_same_v<T, double>,
+            is_builtin_integral_v<T> || std::is_same_v<T, float>
+                || std::is_same_v<T, double>,
             std::complex<double>,
             std::conditional_t<
                 std::is_same_v<T, std::complex<float>>,
                 std::complex<float>,
-                std::conditional_t<
-                    std::is_same_v<T, std::complex<double>>,
-                    std::complex<double>,
-                    T 
-                >
-            >
-        >;
+                std::conditional_t<std::is_same_v<T, std::complex<double>>,
+                                   std::complex<double>,
+                                   T>>>;
     };
 
     template<typename T>

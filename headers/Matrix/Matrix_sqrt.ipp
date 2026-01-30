@@ -201,11 +201,12 @@ Matrix<ResultType> Matrix<T>::sqrt_newton_impl(int max_iter,
                     using ElemType = typename ResultType::value_type;
                     ElemType example_elem;
                     if (X.get_rows() > 0 && X.get_cols() > 0) {
-                        example_elem = static_cast<ElemType>(X(0,0)(0,0));
+                        example_elem = static_cast<ElemType>(X(0, 0)(0, 0));
                     } else {
                         example_elem = ElemType(0);
                     }
-                    auto shift_scalar = Matrix<ElemType>::create_scalar(example_elem, 1e-6);
+                    auto shift_scalar =
+                        Matrix<ElemType>::create_scalar(example_elem, 1e-6);
                     ResultType shift =
                         ResultType::Identity(block_rows, block_cols) * shift_scalar;
 
@@ -250,11 +251,12 @@ Matrix<ResultType> Matrix<T>::sqrt_newton_impl(int max_iter,
                     using ElemType = typename ResultType::value_type;
                     ElemType example_elem;
                     if (X.get_rows() > 0 && X.get_cols() > 0) {
-                        example_elem = static_cast<ElemType>(X(0,0)(0,0));
+                        example_elem = static_cast<ElemType>(X(0, 0)(0, 0));
                     } else {
                         example_elem = ElemType(0);
                     }
-                    auto half_scalar = Matrix<ElemType>::create_scalar(example_elem, 0.5);
+                    auto half_scalar =
+                        Matrix<ElemType>::create_scalar(example_elem, 0.5);
 
                     Matrix<ResultType> temp = X_inv * A;
                     Matrix<ResultType> X_new(n, n);
@@ -305,7 +307,8 @@ Matrix<ResultType> Matrix<T>::sqrt_newton_impl(int max_iter,
                 if (error < tol_norm && residual < tol_norm * 10) {
                     return X;
                 }
-            } catch (...) {}
+            } catch (...) {
+            }
         }
 
         if (iteration_failed && iter > 0 && any_successful_update) {
@@ -500,7 +503,7 @@ Matrix<ResultType> Matrix<T>::sqrt_impl() const {
             using ElemType = typename ResultType::value_type;
             ElemType example_elem;
             if (rows_ > 0 && cols_ > 0) {
-                example_elem = static_cast<ElemType>((*this)(0,0)(0,0));
+                example_elem = static_cast<ElemType>((*this)(0, 0)(0, 0));
             } else {
                 example_elem = ElemType(0);
             }
@@ -518,36 +521,35 @@ Matrix<ResultType> Matrix<T>::sqrt_impl() const {
 }
 
 template<typename T>
-std::pair<Matrix<typename Matrix<T>::template sqrt_return_type<T>>, bool> 
+std::pair<Matrix<typename Matrix<T>::template sqrt_return_type<T>>, bool>
 Matrix<T>::safe_sqrt() const {
     using ResultType = typename Matrix<T>::template sqrt_return_type<T>;
-    
+
     if (rows_ != cols_) {
         return {Matrix<ResultType>(), false};
     }
-    
+
     try {
         Matrix<ResultType> result = this->sqrt();
         return {result, true};
-    }
-    catch (...) {
+    } catch (...) {
         Matrix<ResultType> approx(rows_, cols_);
-        
+
         for (int i = 0; i < rows_; ++i) {
             for (int j = 0; j < cols_; ++j) {
                 if (i == j) {
                     try {
                         ResultType val = static_cast<ResultType>((*this)(i, i));
-                        
+
                         if constexpr (detail::is_matrix_v<ResultType>) {
                             auto [block_sqrt, block_success] = val.safe_sqrt();
                             approx(i, i) = block_sqrt;
                         } else {
-                            using std::sqrt;
                             using std::abs;
-                            
-                            if constexpr (std::is_arithmetic_v<ResultType> && 
-                                        !detail::is_complex_v<ResultType>) {
+                            using std::sqrt;
+
+                            if constexpr (std::is_arithmetic_v<ResultType>
+                                          && !detail::is_complex_v<ResultType>) {
                                 if (val >= ResultType(0)) {
                                     approx(i, i) = sqrt(val);
                                 } else {
@@ -559,17 +561,17 @@ Matrix<T>::safe_sqrt() const {
                                 approx(i, i) = sqrt(val);
                             }
                         }
-                    }
-                    catch (...) {
+                    } catch (...) {
                         if constexpr (detail::is_matrix_v<ResultType>) {
                             int block_rows = 1, block_cols = 1;
                             if (rows_ > 0 && cols_ > 0) {
                                 try {
-                                    auto first_val = static_cast<ResultType>((*this)(0, 0));
+                                    auto first_val =
+                                        static_cast<ResultType>((*this)(0, 0));
                                     block_rows = first_val.get_rows();
                                     block_cols = first_val.get_cols();
+                                } catch (...) {
                                 }
-                                catch (...) {}
                             }
                             approx(i, i) = ResultType::Identity(block_rows, block_cols);
                         } else {
@@ -584,8 +586,8 @@ Matrix<T>::safe_sqrt() const {
                                 auto first_val = static_cast<ResultType>((*this)(0, 0));
                                 block_rows = first_val.get_rows();
                                 block_cols = first_val.get_cols();
+                            } catch (...) {
                             }
-                            catch (...) {}
                         }
                         approx(i, j) = ResultType::Zero(block_rows, block_cols);
                     } else {
@@ -594,13 +596,13 @@ Matrix<T>::safe_sqrt() const {
                 }
             }
         }
-        
+
         try {
             bool has_nan = false;
             for (int i = 0; i < rows_ && !has_nan; ++i) {
                 for (int j = 0; j < cols_ && !has_nan; ++j) {
                     if constexpr (detail::is_matrix_v<ResultType>) {
-                        auto& block = approx(i, j);
+                        auto &block = approx(i, j);
                         for (int bi = 0; bi < block.get_rows() && !has_nan; ++bi) {
                             for (int bj = 0; bj < block.get_cols() && !has_nan; ++bj) {
                                 if (std::isnan(static_cast<double>(block(bi, bj)))) {
@@ -615,7 +617,7 @@ Matrix<T>::safe_sqrt() const {
                     }
                 }
             }
-            
+
             if (has_nan) {
                 if constexpr (detail::is_matrix_v<ResultType>) {
                     int block_rows = 1, block_cols = 1;
@@ -624,18 +626,20 @@ Matrix<T>::safe_sqrt() const {
                             auto first_val = static_cast<ResultType>((*this)(0, 0));
                             block_rows = first_val.get_rows();
                             block_cols = first_val.get_cols();
+                        } catch (...) {
                         }
-                        catch (...) {}
                     }
-                    approx = Matrix<ResultType>::BlockIdentity(rows_, cols_, block_rows, block_cols);
+                    approx = Matrix<ResultType>::BlockIdentity(rows_,
+                                                               cols_,
+                                                               block_rows,
+                                                               block_cols);
                 } else {
                     approx = Matrix<ResultType>::Identity(rows_);
                 }
             }
+        } catch (...) {
         }
-        catch (...) {
-        }
-        
+
         return {approx, false};
     }
 }

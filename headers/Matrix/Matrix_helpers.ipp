@@ -172,9 +172,7 @@ bool Matrix<T>::is_equal(const U &a, const U &b) {
     }
 }
 
-template<typename T>
-template<typename U>
-bool Matrix<T>::is_zero(const U &value) {
+template<typename T> template<typename U> bool Matrix<T>::is_zero(const U &value) {
     if constexpr (detail::is_matrix_v<U>) {
         auto norm_val = value.frobenius_norm();
         return is_zero(norm_val);
@@ -435,7 +433,8 @@ auto Matrix<T>::create_scalar(const ExampleType &example, ValueType value) {
     if constexpr (detail::is_matrix_v<ExampleType>) {
         return value;
     } else {
-        using CommonType = typename detail::matrix_common_type<ExampleType, ValueType>::type;
+        using CommonType =
+            typename detail::matrix_common_type<ExampleType, ValueType>::type;
         return static_cast<CommonType>(value);
     }
 }

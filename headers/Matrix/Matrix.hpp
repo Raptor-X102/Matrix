@@ -125,8 +125,7 @@ public:
 
     template<typename U = T> static bool is_equal(const U &a, const U &b);
 
-    template<typename U = T> 
-    static bool is_zero(const U &value);
+    template<typename U = T> static bool is_zero(const U &value);
 
     bool is_zero(int i, int j) const;
 
@@ -176,7 +175,7 @@ public:
 
     template<typename ResultType> Matrix<ResultType> sqrt_impl() const;
 
-    std::pair<Matrix<typename Matrix<T>::template sqrt_return_type<T>>, bool> 
+    std::pair<Matrix<typename Matrix<T>::template sqrt_return_type<T>>, bool>
     safe_sqrt() const;
 
     static T generate_random(T min_val, T max_val);
@@ -185,19 +184,19 @@ public:
 
     template<typename U = T>
     using eigen_return_type = typename detail::eigen_return_type_impl<U>::type;
-    
+
     std::vector<eigen_return_type<T>> eigenvalues(int max_iterations = 1000) const;
     Matrix<eigen_return_type<T>> eigenvectors(int max_iterations = 1000) const;
     std::pair<std::vector<eigen_return_type<T>>, Matrix<eigen_return_type<T>>>
     eigen(int max_iterations = Default_max_iterations) const;
-    
+
     // Вспомогательные публичные методы
     template<typename ComputeType = eigen_return_type<T>>
     std::vector<ComputeType> eigenvalues_qr(int max_iterations = 1000) const;
-    
+
     template<typename ComputeType = eigen_return_type<T>>
     Matrix<ComputeType> eigenvectors_qr(int max_iterations = 1000) const;
-    
+
     template<typename ComputeType = eigen_return_type<T>>
     std::pair<std::vector<ComputeType>, Matrix<ComputeType>>
     eigen_qr(int max_iterations = 1000) const;
@@ -205,17 +204,16 @@ public:
     template<typename ComputeType = T>
     std::pair<Matrix<ComputeType>, Matrix<ComputeType>> qr_decomposition() const;
 
-    template<typename ComputeType>
-    Matrix<ComputeType> hessenberg_form() const;
+    template<typename ComputeType> Matrix<ComputeType> hessenberg_form() const;
 
     template<typename ComputeType>
-    Vector<ComputeType> householder_vector(const Vector<ComputeType>& x) const;
+    Vector<ComputeType> householder_vector(const Vector<ComputeType> &x) const;
 
     template<typename ExampleType, typename ValueType>
-    static auto create_scalar(const ExampleType& example, ValueType value);
+    static auto create_scalar(const ExampleType &example, ValueType value);
 
     template<typename ComputeType>
-    bool is_norm_zero(const ComputeType& norm_value) const;
+    bool is_norm_zero(const ComputeType &norm_value) const;
 
 protected:
     template<typename U = T> static U identity_element(int rows, int cols);
@@ -301,31 +299,38 @@ private:
                                      int cols_in_block) const;
 
     template<typename ComputeType>
-    void apply_householder_left(Matrix<ComputeType>& A,
-                                const Vector<ComputeType>& v,
+    void apply_householder_left(Matrix<ComputeType> &A,
+                                const Vector<ComputeType> &v,
                                 int k) const;
 
     template<typename ComputeType>
-    void apply_householder_right(Matrix<ComputeType>& A,
-                                 const Vector<ComputeType>& v,
+    void apply_householder_right(Matrix<ComputeType> &A,
+                                 const Vector<ComputeType> &v,
                                  int k) const;
 
     template<typename ComputeType>
-    Vector<ComputeType> back_substitution(const Matrix<ComputeType>& R,
-                                          const Vector<ComputeType>& y) const;
+    Vector<ComputeType> back_substitution(const Matrix<ComputeType> &R,
+                                          const Vector<ComputeType> &y) const;
 
     template<typename ComputeType>
-    Vector<ComputeType> inverse_iteration(const Matrix<ComputeType>& A,
-                                          const ComputeType& lambda,
+    Vector<ComputeType> inverse_iteration(const Matrix<ComputeType> &A,
+                                          const ComputeType &lambda,
                                           int max_iterations = 50) const;
 
     template<typename ComputeType>
-    std::vector<ComputeType> extract_eigenvalues_2x2(const Matrix<ComputeType>& H, int i) const;
-    
+    std::vector<ComputeType> extract_eigenvalues_2x2(const Matrix<ComputeType> &H,
+                                                     int i) const;
+
     template<typename ComputeType>
-    typename Matrix<ComputeType>::norm_return_type off_diagonal_norm(const Matrix<ComputeType>& H) const;
+    Matrix<ComputeType>
+    eigenvectors_2x2(const Matrix<ComputeType> &A,
+                     const std::vector<ComputeType> &eigenvalues) const;
+    template<typename ComputeType>
+    typename Matrix<ComputeType>::norm_return_type
+    off_diagonal_norm(const Matrix<ComputeType> &H) const;
 
     static constexpr int Default_max_iterations = 10000;
+    template<typename ComputeType> Matrix<ComputeType> balance_matrix() const;
 
     static std::vector<T> create_controlled_diagonal(int size,
                                                      T min_val,

@@ -1,6 +1,5 @@
 #pragma once
 
-
 template<typename T> class Matrix;
 template<typename T> class Vector;
 
@@ -19,8 +18,8 @@ template<typename T, typename U> auto operator/(const Vector<T> &vec, const U &s
 template<typename T, typename U>
 auto operator*(const Matrix<T> &matrix, const Vector<U> &vec);
 
-//template<typename T, typename U>
-//auto operator*(const Vector<T> &vec, const Matrix<U> &matrix);
+// template<typename T, typename U>
+// auto operator*(const Vector<T> &vec, const Matrix<U> &matrix);
 
 #ifndef MATRIX_IMPLEMENTATION_INCLUDED
 #define MATRIX_IMPLEMENTATION_INCLUDED
@@ -28,7 +27,6 @@ auto operator*(const Matrix<T> &matrix, const Vector<U> &vec);
 #endif
 
 template<typename T> class Vector : public Matrix<T> {
-
 public:
     Vector();
     explicit Vector(int size);
@@ -49,9 +47,10 @@ public:
     T dot(const Vector<T> &other) const;
     Vector<T> cross(const Vector<T> &other) const;
     using norm_return_type = typename detail::norm_return_type_impl<T>::type;
-    
+
     norm_return_type norm() const;
-    T norm_squared() const;    Vector<T> normalized() const;
+    T norm_squared() const;
+    Vector<T> normalized() const;
     void normalize();
     T angle(const Vector<T> &other) const;
     Vector<T> projection(const Vector<T> &other) const;
@@ -82,9 +81,9 @@ public:
     const T *end() const;
     const T *cbegin() const;
     const T *cend() const;
-    
+
     template<typename U>
-    friend std::ostream& operator<<(std::ostream& os, const Vector<U>& vec);
+    friend std::ostream &operator<<(std::ostream &os, const Vector<U> &vec);
 
 private:
     T avx_dot_impl(const Vector<T> &other) const;

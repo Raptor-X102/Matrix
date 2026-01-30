@@ -16,7 +16,7 @@ template<typename T> T Vector<T>::dot(const Vector<T> &other) const {
         return avx_dot_impl(other);
     }
 #endif
-    
+
     T result;
     if constexpr (detail::is_matrix_v<T>) {
         int block_rows = (*this)(0).get_rows();
@@ -25,14 +25,14 @@ template<typename T> T Vector<T>::dot(const Vector<T> &other) const {
     } else {
         result = T{0};
     }
-    
+
     if constexpr (detail::is_complex_v<T>) {
         for (int i = 0; i < size(); ++i) {
             result += std::conj((*this)(i)) * other(i);
         }
     } else {
         for (int i = 0; i < size(); ++i) {
-            result += (*this)(i) * other(i);
+            result += (*this)(i)*other(i);
         }
     }
     return result;
@@ -50,25 +50,24 @@ template<typename T> Vector<T> Vector<T>::cross(const Vector<T> &other) const {
     return result;
 }
 
-template<typename T>
-typename Vector<T>::norm_return_type Vector<T>::norm() const {
+template<typename T> typename Vector<T>::norm_return_type Vector<T>::norm() const {
     if constexpr (detail::is_matrix_v<T>) {
         if (size() == 0) {
             return norm_return_type{0};
         }
-        
+
         using InnerType = typename T::value_type;
         using InnerNormType = typename Matrix<InnerType>::norm_return_type;
-        
+
         InnerNormType sum = InnerNormType(0);
-        
+
         for (int i = 0; i < size(); ++i) {
             auto block_norm_sq = (*this)(i).frobenius_norm_squared();
             sum = sum + block_norm_sq;
         }
-        
+
         using std::sqrt;
-        
+
         if constexpr (std::is_same_v<InnerNormType, int>) {
             return static_cast<int>(std::sqrt(static_cast<double>(sum)));
         } else if constexpr (std::is_floating_point_v<InnerNormType>) {
@@ -80,7 +79,7 @@ typename Vector<T>::norm_return_type Vector<T>::norm() const {
         }
     } else {
         T dot_val = this->dot(*this);
-        
+
         if constexpr (detail::is_complex_v<T>) {
             using std::sqrt;
             return sqrt(dot_val);
@@ -106,19 +105,19 @@ template<typename T> T Vector<T>::angle(const Vector<T> &other) const {
         T dot_val = this->dot(other);
         T norm1 = this->norm();
         T norm2 = other.norm();
-        
+
         if (norm1 == T{} || norm2 == T{}) {
             throw std::runtime_error("Cannot compute angle with zero vector");
         }
-        
+
         using RealType = typename T::value_type;
         RealType abs_dot_val = std::abs(dot_val);
         RealType norms_product = std::abs(norm1) * std::abs(norm2);
-        
+
         if (norms_product == RealType{}) {
             throw std::runtime_error("Cannot compute angle with zero norm");
         }
-        
+
         RealType cos_angle = abs_dot_val / norms_product;
         cos_angle = std::max(RealType{-1}, std::min(RealType{1}, cos_angle));
         return T(std::acos(cos_angle), RealType(0));
@@ -131,7 +130,6 @@ template<typename T> T Vector<T>::angle(const Vector<T> &other) const {
             "Angle computation requires floating point or complex type");
     }
 }
-
 
 template<typename T>
 bool Vector<T>::is_orthogonal(const Vector<T> &other, T tolerance) const {

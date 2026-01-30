@@ -89,13 +89,15 @@ auto operator+(const Matrix<T> &lhs, const Matrix<U> &rhs) {
         if constexpr (detail::is_matrix_v<T>) {
             if (lhs.get_rows() > 0 && lhs.get_cols() > 0) {
                 DEBUG_PRINTF("left block at (0,0): %dx%d\n",
-                           lhs(0,0).get_rows(), lhs(0,0).get_cols());
+                             lhs(0, 0).get_rows(),
+                             lhs(0, 0).get_cols());
             }
         }
         if constexpr (detail::is_matrix_v<U>) {
             if (rhs.get_rows() > 0 && rhs.get_cols() > 0) {
                 DEBUG_PRINTF("right block at (0,0): %dx%d\n",
-                           rhs(0,0).get_rows(), rhs(0,0).get_cols());
+                             rhs(0, 0).get_rows(),
+                             rhs(0, 0).get_cols());
             }
         }
 
@@ -422,7 +424,7 @@ template<typename T, typename U> auto operator*(const Matrix<T> &A, const Matrix
         for (int k = 0; k < A.get_cols(); ++k) {
             CommonType a_ik = static_cast<CommonType>(A(i, k));
             for (int j = 0; j < B.get_cols(); ++j) {
-                result(i, j) += a_ik * static_cast<CommonType>(B(k, j));
+                result(i, j) += a_ik * B(k, j);
             }
         }
     }
@@ -456,7 +458,8 @@ auto operator*(const Matrix<T> &matrix, const U &scalar) {
                 result(i, j + 3) = temp[3];
             }
             for (; j < matrix.get_cols(); ++j) {
-                auto scalar_cast = Matrix<CommonType>::create_scalar(matrix(i, j), scalar);
+                auto scalar_cast =
+                    Matrix<CommonType>::create_scalar(matrix(i, j), scalar);
                 result(i, j) = matrix(i, j) * scalar_cast;
             }
         }
@@ -482,14 +485,16 @@ auto operator*(const Matrix<T> &matrix, const U &scalar) {
                 }
             }
             for (; j < matrix.get_cols(); ++j) {
-                auto scalar_cast = Matrix<CommonType>::create_scalar(matrix(i, j), scalar);
+                auto scalar_cast =
+                    Matrix<CommonType>::create_scalar(matrix(i, j), scalar);
                 result(i, j) = matrix(i, j) * scalar_cast;
             }
         }
     } else {
         for (int i = 0; i < matrix.get_rows(); ++i) {
             for (int j = 0; j < matrix.get_cols(); ++j) {
-                auto scalar_cast = Matrix<CommonType>::create_scalar(matrix(i, j), scalar);
+                auto scalar_cast =
+                    Matrix<CommonType>::create_scalar(matrix(i, j), scalar);
                 result(i, j) = matrix(i, j) * scalar_cast;
             }
         }
@@ -531,7 +536,8 @@ auto operator/(const Matrix<T> &matrix, const U &scalar) {
                 result(i, j + 3) = temp[3];
             }
             for (; j < matrix.get_cols(); ++j) {
-                auto scalar_cast = Matrix<CommonType>::create_scalar(matrix(i, j), scalar);
+                auto scalar_cast =
+                    Matrix<CommonType>::create_scalar(matrix(i, j), scalar);
                 result(i, j) = matrix(i, j) / scalar_cast;
             }
         }
@@ -557,14 +563,16 @@ auto operator/(const Matrix<T> &matrix, const U &scalar) {
                 }
             }
             for (; j < matrix.get_cols(); ++j) {
-                auto scalar_cast = Matrix<CommonType>::create_scalar(matrix(i, j), scalar);
+                auto scalar_cast =
+                    Matrix<CommonType>::create_scalar(matrix(i, j), scalar);
                 result(i, j) = matrix(i, j) / scalar_cast;
             }
         }
     } else {
         for (int i = 0; i < matrix.get_rows(); ++i) {
             for (int j = 0; j < matrix.get_cols(); ++j) {
-                auto scalar_cast = Matrix<CommonType>::create_scalar(matrix(i, j), scalar);
+                auto scalar_cast =
+                    Matrix<CommonType>::create_scalar(matrix(i, j), scalar);
                 result(i, j) = matrix(i, j) / scalar_cast;
             }
         }

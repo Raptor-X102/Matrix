@@ -9,9 +9,9 @@ typename Matrix<T>::norm_return_type Matrix<T>::frobenius_norm_squared() const {
     if constexpr (detail::is_matrix_v<T>) {
         using InnerType = typename T::value_type;
         using InnerNormType = typename Matrix<InnerType>::norm_return_type;
-        
+
         InnerNormType sum = InnerNormType(0);
-        
+
         for (int i = 0; i < rows_; ++i) {
             for (int j = 0; j < cols_; ++j) {
                 auto block_norm_sq = matrix_[i][j].frobenius_norm_squared();
@@ -19,7 +19,7 @@ typename Matrix<T>::norm_return_type Matrix<T>::frobenius_norm_squared() const {
             }
         }
         return sum;
-        
+
     } else if constexpr (std::is_same_v<T, float>) {
 #if defined(__AVX__) || defined(__AVX2__)
         __m256 sum_vec = _mm256_setzero_ps();
@@ -42,7 +42,8 @@ typename Matrix<T>::norm_return_type Matrix<T>::frobenius_norm_squared() const {
 
         alignas(32) float temp[8];
         _mm256_store_ps(temp, sum_vec);
-        ReturnType sum = temp[0] + temp[1] + temp[2] + temp[3] + temp[4] + temp[5] + temp[6] + temp[7];
+        ReturnType sum = temp[0] + temp[1] + temp[2] + temp[3] + temp[4] + temp[5]
+                         + temp[6] + temp[7];
 
         for (; i < total_elements; ++i) {
             sum += data[i] * data[i];
@@ -58,7 +59,7 @@ typename Matrix<T>::norm_return_type Matrix<T>::frobenius_norm_squared() const {
         }
         return sum;
 #endif
-        
+
     } else if constexpr (std::is_same_v<T, double>) {
 #if defined(__AVX__) || defined(__AVX2__)
         __m256d sum_vec = _mm256_setzero_pd();
@@ -97,7 +98,7 @@ typename Matrix<T>::norm_return_type Matrix<T>::frobenius_norm_squared() const {
         }
         return sum;
 #endif
-        
+
     } else if constexpr (detail::is_complex_v<T>) {
         using RealType = typename T::value_type;
         RealType sum = RealType(0);
@@ -108,7 +109,7 @@ typename Matrix<T>::norm_return_type Matrix<T>::frobenius_norm_squared() const {
             }
         }
         return sum;
-        
+
     } else if constexpr (std::is_arithmetic_v<T>) {
         ReturnType sum = ReturnType(0);
         for (int i = 0; i < rows_; ++i) {
@@ -118,7 +119,7 @@ typename Matrix<T>::norm_return_type Matrix<T>::frobenius_norm_squared() const {
             }
         }
         return sum;
-        
+
     } else {
         ReturnType sum = ReturnType(0);
         for (int i = 0; i < rows_; ++i) {
@@ -134,9 +135,9 @@ typename Matrix<T>::norm_return_type Matrix<T>::frobenius_norm_squared() const {
 template<typename T>
 typename Matrix<T>::norm_return_type Matrix<T>::frobenius_norm() const {
     using ReturnType = typename Matrix<T>::norm_return_type;
-    
+
     auto sum_squared = frobenius_norm_squared();
-    
+
     if constexpr (detail::is_complex_v<ReturnType>) {
         using std::sqrt;
         return sqrt(sum_squared);
@@ -165,9 +166,9 @@ template<typename T> T Matrix<T>::trace() const {
     return result;
 }
 
-template<typename T>
-bool Matrix<T>::is_symmetric() const {
-    if (rows_ != cols_) return false;
+template<typename T> bool Matrix<T>::is_symmetric() const {
+    if (rows_ != cols_)
+        return false;
 
     for (int i = 0; i < rows_; ++i) {
         for (int j = i + 1; j < cols_; ++j) {
@@ -181,12 +182,13 @@ bool Matrix<T>::is_symmetric() const {
 
 template<typename T>
 template<typename ComputeType>
-typename Matrix<ComputeType>::norm_return_type Matrix<T>::off_diagonal_norm(const Matrix<ComputeType>& H) const {
+typename Matrix<ComputeType>::norm_return_type
+Matrix<T>::off_diagonal_norm(const Matrix<ComputeType> &H) const {
     int n = H.get_rows();
     using NormType = typename Matrix<ComputeType>::norm_return_type;
-    
+
     NormType sum{0};
-    
+
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < n; ++j) {
             if (i != j) {
@@ -203,14 +205,14 @@ typename Matrix<ComputeType>::norm_return_type Matrix<T>::off_diagonal_norm(cons
             }
         }
     }
-    
+
     using std::sqrt;
     return sqrt(sum);
 }
 
 template<typename T>
 template<typename ComputeType>
-bool Matrix<T>::is_norm_zero(const ComputeType& norm_value) const {
+bool Matrix<T>::is_norm_zero(const ComputeType &norm_value) const {
     if constexpr (detail::is_matrix_v<ComputeType>) {
         auto frob_norm = norm_value.frobenius_norm();
         if constexpr (detail::is_complex_v<decltype(frob_norm)>) {

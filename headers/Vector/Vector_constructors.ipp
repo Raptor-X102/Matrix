@@ -34,8 +34,7 @@ Vector<T>::Vector(const Matrix<T> &matrix)
     }
 }
 
-template<typename T> 
-Vector<T> Vector<T>::from_row(const Matrix<T> &matrix) {
+template<typename T> Vector<T> Vector<T>::from_row(const Matrix<T> &matrix) {
     if (matrix.get_rows() != 1) {
         throw std::invalid_argument("Matrix must be a row vector (1 x n)");
     }
@@ -46,8 +45,7 @@ Vector<T> Vector<T>::from_row(const Matrix<T> &matrix) {
     return result;
 }
 
-template<typename T> 
-static Vector<T> from_column(const Matrix<T> &matrix, int col) {
+template<typename T> static Vector<T> from_column(const Matrix<T> &matrix, int col) {
     if (col < 0 || col >= matrix.get_cols()) {
         throw std::invalid_argument("Column index out of bounds");
     }

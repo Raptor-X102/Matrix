@@ -127,8 +127,7 @@ void print_matrix_info(const Matrix<T> &A, const std::string &name) {
     }
 }
 
-template<typename T>
-void test_sqrt_for_type(const Matrix<T>& A) {
+template<typename T> void test_sqrt_for_type(const Matrix<T> &A) {
     using ResultType = typename Matrix<T>::template sqrt_return_type<T>;
     print_matrix_info(A, "INPUT");
     std::cout << "\n";
@@ -146,7 +145,7 @@ void test_sqrt_for_type(const Matrix<T>& A) {
         auto B = A.sqrt();
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration<double>(end - start);
-        std::cout << "   Computation time: " << std::fixed << std::setprecision(6) 
+        std::cout << "   Computation time: " << std::fixed << std::setprecision(6)
                   << duration.count() << " seconds\n";
         std::cout << "   Result obtained (may be approximate)\n";
         print_matrix_info(B, "RESULT");
@@ -183,29 +182,26 @@ void test_sqrt_for_type(const Matrix<T>& A) {
             } else {
                 std::cout << "   WARNING: Large error (approximate result)\n";
             }
-        }
-        catch (const std::exception& e) {
+        } catch (const std::exception &e) {
             std::cout << "   Verification failed: " << e.what() << "\n";
             std::cout << "   Result may be invalid\n";
         }
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         std::cout << "\n   ERROR during sqrt(): " << e.what() << "\n";
         std::cout << "   Trying safe_sqrt()...\n";
         try {
             auto [approx, success] = A.safe_sqrt();
-            std::cout << "   Got " << (success ? "successful" : "approximate") << " result from safe_sqrt()\n";
+            std::cout << "   Got " << (success ? "successful" : "approximate")
+                      << " result from safe_sqrt()\n";
             if (approx.get_rows() > 0 && approx.get_cols() > 0) {
                 print_matrix_info(approx, "SAFE SQRT APPROXIMATION");
                 std::cout << "   Note: This is a diagonal approximation\n";
                 std::cout << "   It may not be an accurate square root\n";
             }
-        }
-        catch (const std::exception& e2) {
+        } catch (const std::exception &e2) {
             std::cout << "   safe_sqrt() also failed: " << e2.what() << "\n";
         }
-    }
-    catch (...) {
+    } catch (...) {
         std::cout << "\n   ERROR: Unknown error\n";
     }
     std::cout << "\n";
@@ -318,11 +314,15 @@ int main() {
             std::cout << "\n=== FIXED TEST: Block Matrices ===\n";
             std::cout << "\n1. DIAGONAL BLOCK MATRIX:\n";
             BlockType A(2, 2);
-            A(0, 0) = 25.0; A(0, 1) = 0.0;
-            A(1, 0) = 0.0;  A(1, 1) = 16.0;
+            A(0, 0) = 25.0;
+            A(0, 1) = 0.0;
+            A(1, 0) = 0.0;
+            A(1, 1) = 16.0;
             BlockType B(2, 2);
-            B(0, 0) = 9.0;  B(0, 1) = 0.0;
-            B(1, 0) = 0.0;  B(1, 1) = 36.0;
+            B(0, 0) = 9.0;
+            B(0, 1) = 0.0;
+            B(1, 0) = 0.0;
+            B(1, 1) = 36.0;
             Matrix<BlockType> M_diag(2, 2);
             BlockType zeroBlock = BlockType::Zero(2, 2);
             M_diag(0, 0) = A;
@@ -340,24 +340,31 @@ int main() {
             try {
                 auto sqrt_diag = M_diag.sqrt();
                 std::cout << "Success!\n";
-            }
-            catch (const std::exception& e) {
+            } catch (const std::exception &e) {
                 std::cout << "Error: " << e.what() << "\n";
             }
             std::cout << "\n\n2. NON-DIAGONAL BLOCK MATRIX WITH KNOWN SQRT:\n";
             Matrix<BlockType> C_known(2, 2);
             BlockType C11(2, 2);
-            C11(0, 0) = 2.0; C11(0, 1) = 1.0;
-            C11(1, 0) = 1.0; C11(1, 1) = 3.0;
+            C11(0, 0) = 2.0;
+            C11(0, 1) = 1.0;
+            C11(1, 0) = 1.0;
+            C11(1, 1) = 3.0;
             BlockType C12(2, 2);
-            C12(0, 0) = 1.0; C12(0, 1) = 0.0;
-            C12(1, 0) = 0.0; C12(1, 1) = 1.0;
+            C12(0, 0) = 1.0;
+            C12(0, 1) = 0.0;
+            C12(1, 0) = 0.0;
+            C12(1, 1) = 1.0;
             BlockType C21(2, 2);
-            C21(0, 0) = 0.0; C21(0, 1) = 1.0;
-            C21(1, 0) = 1.0; C21(1, 1) = 0.0;
+            C21(0, 0) = 0.0;
+            C21(0, 1) = 1.0;
+            C21(1, 0) = 1.0;
+            C21(1, 1) = 0.0;
             BlockType C22(2, 2);
-            C22(0, 0) = 3.0; C22(0, 1) = 1.0;
-            C22(1, 0) = 1.0; C22(1, 1) = 2.0;
+            C22(0, 0) = 3.0;
+            C22(0, 1) = 1.0;
+            C22(1, 0) = 1.0;
+            C22(1, 1) = 2.0;
             C_known(0, 0) = C11;
             C_known(0, 1) = C12;
             C_known(1, 0) = C21;
@@ -396,12 +403,12 @@ int main() {
                 } else {
                     std::cout << "\nFAILED: Large error\n";
                 }
-            }
-            catch (const std::exception& e) {
+            } catch (const std::exception &e) {
                 std::cout << "\nError computing sqrt: " << e.what() << "\n";
                 std::cout << "Trying safe_sqrt...\n";
                 auto [approx, success] = M_nondiag.safe_sqrt();
-                std::cout << "safe_sqrt " << (success ? "succeeded" : "returned approximation") << "\n";
+                std::cout << "safe_sqrt "
+                          << (success ? "succeeded" : "returned approximation") << "\n";
                 if (approx.get_rows() > 0) {
                     std::cout << "\nResult from safe_sqrt:\n";
                     for (int i = 0; i < 2; ++i) {
