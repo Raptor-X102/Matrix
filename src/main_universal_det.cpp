@@ -132,10 +132,9 @@ template<typename MatType> void test_det_with_timer_and_print(int n) {
 #ifdef TIME_MEASURE
         {
             Timer timer;
-            computed_det = matrix.det();
         }
 #else
-        computed_det = matrix.det();
+        computed_det = matrix.try_det();
 #endif
         std::cout << "   ✓ Determinant computation completed\n";
     } catch (const std::exception &e) {

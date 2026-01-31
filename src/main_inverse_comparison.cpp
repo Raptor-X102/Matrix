@@ -166,7 +166,7 @@ template<typename MatType> void test_inverse_matrix(int n) {
                 attempts++;
 
                 // Проверяем определитель
-                auto det_opt = A.det();
+                auto det_opt = A.try_det();
                 if (det_opt && !MatType::is_zero(*det_opt)) {
                     break;
                 }
@@ -213,7 +213,7 @@ template<typename MatType> void test_inverse_matrix(int n) {
 
         // 3. Проверяем определитель
         std::cout << "\n3. CHECKING DETERMINANT...\n";
-        auto det_opt = A.det();
+        auto det_opt = A.try_det();
         if (det_opt) {
             std::cout << "   det(A) ";
             if constexpr (detail::is_matrix_v<ValueType>) {

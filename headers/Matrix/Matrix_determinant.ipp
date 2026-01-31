@@ -1,4 +1,27 @@
+template<typename T> T Matrix<T>::det() const {
+    if (rows_ != cols_) {
+        throw std::invalid_argument("Matrix must be square for determinant");
+    }
+    
+    auto result = det(0, 0, rows_);
+    if (!result) {
+        throw std::runtime_error("Determinant computation failed");
+    }
+    return *result;
+}
+
+template<typename T> std::optional<T> Matrix<T>::try_det() const {
+    if (rows_ != cols_) {
+        return std::nullopt;
+    }
+    return det(0, 0, rows_);
+}
+
 template<typename T> std::optional<T> Matrix<T>::det(int row, int col, int size) const {
+    if (row < 0 || col < 0 || size <= 0 || row + size > rows_ || col + size > cols_) {
+        throw std::invalid_argument("Invalid submatrix parameters for determinant");
+    }
+
     if constexpr (detail::is_builtin_integral_v<T>) {
         return det_integer_algorithm(row, col, size);
     } else {
@@ -8,20 +31,10 @@ template<typename T> std::optional<T> Matrix<T>::det(int row, int col, int size)
     }
 }
 
-template<typename T> std::optional<T> Matrix<T>::det() const {
-    return det(0, 0, min_dim_);
-}
-
 template<typename T>
 std::optional<T> Matrix<T>::det_integer_algorithm(int row, int col, int size) const {
-    if (row < 0 || row >= rows_ || col < 0 || col >= cols_ || row + size > rows_
-        || col + size > cols_ || size <= 0) {
-        return std::nullopt;
-    }
-
     if (size == 1) {
-        determinant_ = (*this)(row, col);
-        return determinant_;
+        return (*this)(row, col);
     }
 
     Matrix<T> work_matrix = Submatrix(*this, row, col, size, size);
@@ -38,8 +51,7 @@ std::optional<T> Matrix<T>::det_integer_algorithm(int row, int col, int size) co
         }
 
         if (pivot_row == -1) {
-            determinant_ = T{0};
-            return determinant_;
+            return T{0};
         }
 
         if (pivot_row != step) {
@@ -77,11 +89,10 @@ std::optional<T> Matrix<T>::det_integer_algorithm(int row, int col, int size) co
 
     if (final_det > std::numeric_limits<T>::max()
         || final_det < std::numeric_limits<T>::min()) {
-        return std::nullopt;
+        throw std::overflow_error("Determinant overflow");
     }
 
-    determinant_ = static_cast<T>(final_det);
-    return determinant_;
+    return static_cast<T>(final_det);
 }
 
 template<typename T>
@@ -95,15 +106,8 @@ std::optional<T> Matrix<T>::det_numeric_impl(int row, int col, int size) const {
         }
     }
 
-    if (row < 0 || row >= rows_ || col < 0 || col >= cols_ || row + size > rows_
-        || col + size > cols_ || size <= 0) {
-        DEBUG_PRINTF("Invalid parameters!\n");
-        return std::nullopt;
-    }
-
     if (size == 1) {
-        determinant_.emplace((*this)(row, col));
-        return determinant_;
+        return (*this)(row, col);
     }
 
     Matrix<T> matrix_cpy = Submatrix(*this, row, col, size, size);
@@ -114,8 +118,6 @@ std::optional<T> Matrix<T>::det_numeric_impl(int row, int col, int size) const {
         std::optional<int> max_index_opt =
             matrix_cpy.template find_pivot_in_subcol<T>(j, j);
         if (!max_index_opt) {
-            DEBUG_PRINTF("No pivot found, determinant is zero\n");
-            determinant_.emplace(zero_element<T>(block_rows, block_cols));
             return zero_element<T>(block_rows, block_cols);
         }
 
@@ -129,8 +131,6 @@ std::optional<T> Matrix<T>::det_numeric_impl(int row, int col, int size) const {
         T pivot = matrix_cpy(j, j);
 
         if (is_element_zero(pivot)) {
-            DEBUG_PRINTF("Pivot is zero, determinant is zero\n");
-            determinant_.emplace(zero_element<T>(block_rows, block_cols));
             return zero_element<T>(block_rows, block_cols);
         }
 
@@ -149,6 +149,5 @@ std::optional<T> Matrix<T>::det_numeric_impl(int row, int col, int size) const {
         determinant = -determinant;
     }
 
-    determinant_ = determinant;
-    return determinant_;
+    return determinant;
 }

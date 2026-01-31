@@ -4,9 +4,14 @@ template<typename T> void Matrix<T>::alloc_matrix_() {
         return;
     }
 
-    matrix_ = std::make_unique<std::unique_ptr<T[]>[]>(rows_);
-    for (int i = 0; i < rows_; ++i) {
-        matrix_[i] = std::make_unique<T[]>(cols_);
+    try {
+        matrix_ = std::make_unique<std::unique_ptr<T[]>[]>(rows_);
+        for (int i = 0; i < rows_; ++i) {
+            matrix_[i] = std::make_unique<T[]>(cols_);
+        }
+    } catch (const std::bad_alloc&) {
+        matrix_.reset();
+        throw;
     }
 }
 
@@ -17,6 +22,12 @@ template<typename T> void Matrix<T>::init_zero_() {
 }
 
 template<typename T> void Matrix<T>::fill_upper_triangle(T min_val, T max_val) {
+    if constexpr (detail::is_ordered_v<T>) {
+        if (min_val > max_val) {
+            throw std::invalid_argument("min_val must be less than or equal to max_val");
+        }
+    }
+
     for (int i = 0; i < min_dim_; ++i) {
         for (int j = i + 1; j < cols_; ++j) {
             T val = generate_random(min_val, max_val);
@@ -248,7 +259,25 @@ std::optional<int> Matrix<T>::find_pivot_in_subcol(int row, int col) const {
     }
 }
 
+template<typename T>
+void Matrix<T>::swap_data(Matrix<T>& other) noexcept {
+    using std::swap;
+    swap(rows_, other.rows_);
+    swap(cols_, other.cols_);
+    swap(min_dim_, other.min_dim_);
+    matrix_.swap(other.matrix_);
+}
+
+template<typename T>
+void swap(Matrix<T>& first, Matrix<T>& second) noexcept {
+    first.swap_data(second);
+}
+
 template<typename T> void Matrix<T>::swap_rows(int i, int j) {
+    if (i < 0 || i >= rows_ || j < 0 || j >= rows_) {
+        throw std::out_of_range("Row index out of range in swap_rows");
+    }
+
     if (i != j) {
         std::swap(matrix_[i], matrix_[j]);
 
@@ -258,6 +287,10 @@ template<typename T> void Matrix<T>::swap_rows(int i, int j) {
 }
 
 template<typename T> void Matrix<T>::multiply_row(int target_row, T scalar) {
+    if (target_row < 0 || target_row >= rows_) {
+        throw std::out_of_range("Row index out of range in multiply_row");
+    }
+
     // there is no scalar null check here intentionally
     // user must keep in mind that
     // it would't be an equivalent transformation
@@ -270,6 +303,11 @@ template<typename T> void Matrix<T>::multiply_row(int target_row, T scalar) {
 
 template<typename T>
 void Matrix<T>::add_row_scaled(int target_row, int source_row, T scalar) {
+    if (target_row < 0 || target_row >= rows_ || 
+        source_row < 0 || source_row >= rows_) {
+        throw std::out_of_range("Row index out of range in add_row_scaled");
+    }
+    
     for (int j = 0; j < cols_; ++j)
         matrix_[target_row][j] =
             matrix_[target_row][j] + matrix_[source_row][j] * scalar;

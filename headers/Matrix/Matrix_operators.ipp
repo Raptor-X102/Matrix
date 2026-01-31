@@ -61,10 +61,12 @@ template<typename T> template<typename U> Matrix<T>::operator Matrix<U>() const 
 }
 
 template<typename T> T &Matrix<T>::operator()(int i, int j) {
+    // no index check, due to speed loss
     return matrix_[i][j];
 }
 
 template<typename T> const T &Matrix<T>::operator()(int i, int j) const {
+    // no index check, due to speed loss
     return matrix_[i][j];
 }
 
@@ -81,26 +83,6 @@ template<typename T> Matrix<T> Matrix<T>::operator-() const {
 template<typename T, typename U>
 auto operator+(const Matrix<T> &lhs, const Matrix<U> &rhs) {
     if (lhs.get_rows() != rhs.get_rows() || lhs.get_cols() != rhs.get_cols()) {
-        DEBUG_PRINTF("left matrix: %dx%d\n", lhs.get_rows(), lhs.get_cols());
-        DEBUG_PRINTF("right matrix: %dx%d\n", rhs.get_rows(), rhs.get_cols());
-        lhs.detailed_print();
-        rhs.detailed_print();
-
-        if constexpr (detail::is_matrix_v<T>) {
-            if (lhs.get_rows() > 0 && lhs.get_cols() > 0) {
-                DEBUG_PRINTF("left block at (0,0): %dx%d\n",
-                             lhs(0, 0).get_rows(),
-                             lhs(0, 0).get_cols());
-            }
-        }
-        if constexpr (detail::is_matrix_v<U>) {
-            if (rhs.get_rows() > 0 && rhs.get_cols() > 0) {
-                DEBUG_PRINTF("right block at (0,0): %dx%d\n",
-                             rhs(0, 0).get_rows(),
-                             rhs(0, 0).get_cols());
-            }
-        }
-
         throw std::invalid_argument("Matrix dimensions must match for addition");
     }
 
@@ -513,6 +495,10 @@ auto operator*(const Matrix<T> &matrix, const U &scalar) {
 
 template<typename T, typename U>
 auto operator/(const Matrix<T> &matrix, const U &scalar) {
+    if (Matrix<T>::is_zero(scalar)) {
+        throw std::invalid_argument("Division by zero");
+    }
+
     using CommonType = detail::matrix_common_type_t<T, U>;
     Matrix<CommonType> result(matrix.get_rows(), matrix.get_cols());
 
