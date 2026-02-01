@@ -2,7 +2,7 @@ template<typename T> T Matrix<T>::det() const {
     if (rows_ != cols_) {
         throw std::invalid_argument("Matrix must be square for determinant");
     }
-    
+
     auto result = det(0, 0, rows_);
     if (!result) {
         throw std::runtime_error("Determinant computation failed");

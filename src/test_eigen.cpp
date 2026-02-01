@@ -392,14 +392,14 @@ template<typename T> void test_eigen_for_type(int size) {
             auto trace_val = A.trace();
             std::cout << "   Trace(A) = ";
 
-            if constexpr (detail::is_matrix_v<decltype(trace_val)>) {
-                std::cout << type_name<decltype(trace_val)>() << " "
-                          << trace_val.get_rows() << "x" << trace_val.get_cols() << "\n";
-            } else if constexpr (detail::is_complex_v<decltype(trace_val)>) {
-                std::cout << "(" << trace_val.real() << " + " << trace_val.imag()
+            if constexpr (detail::is_matrix_v<decltype(*trace_val)>) {
+                std::cout << type_name<decltype(*trace_val)>() << " "
+                          << *trace_val.get_rows() << "x" << *trace_val.get_cols() << "\n";
+            } else if constexpr (detail::is_complex_v<decltype(*trace_val)>) {
+                std::cout << "(" << *trace_val.real() << " + " << *trace_val.imag()
                           << "i)\n";
             } else {
-                std::cout << trace_val << "\n";
+                std::cout << *trace_val << "\n";
             }
         } catch (...) {
             std::cout << "   Trace computation failed\n";

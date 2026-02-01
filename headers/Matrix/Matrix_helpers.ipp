@@ -9,7 +9,7 @@ template<typename T> void Matrix<T>::alloc_matrix_() {
         for (int i = 0; i < rows_; ++i) {
             matrix_[i] = std::make_unique<T[]>(cols_);
         }
-    } catch (const std::bad_alloc&) {
+    } catch (const std::bad_alloc &) {
         matrix_.reset();
         throw;
     }
@@ -21,105 +21,22 @@ template<typename T> void Matrix<T>::init_zero_() {
             matrix_[i][j] = T{};
 }
 
-template<typename T> void Matrix<T>::fill_upper_triangle(T min_val, T max_val) {
-    if constexpr (detail::is_ordered_v<T>) {
-        if (min_val > max_val) {
-            throw std::invalid_argument("min_val must be less than or equal to max_val");
-        }
-    }
-
-    for (int i = 0; i < min_dim_; ++i) {
-        for (int j = i + 1; j < cols_; ++j) {
-            T val = generate_random(min_val, max_val);
-            if constexpr (detail::is_ordered_v<T>) {
-                if constexpr (std::is_floating_point_v<T>) {
-                    val = std::clamp(val, T{-10.0}, T{10.0});
-                } else {
-                    val = std::clamp(val,
-                                     static_cast<T>(min_val),
-                                     static_cast<T>(max_val));
-                }
-            }
-            (*this)(i, j) = val;
-        }
-    }
-}
-
-template<typename T> int Matrix<T>::generate_random_int_(int min, int max) {
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    std::uniform_int_distribution<int> dis(min, max);
-
-    return dis(gen);
-}
-
-template<typename T> double Matrix<T>::generate_random_double_(double min, double max) {
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    std::uniform_real_distribution<double> dis(min, max);
-
-    return dis(gen);
-}
-
-template<typename T> T Matrix<T>::generate_random(T min_val, T max_val) {
-    if constexpr (std::is_same_v<T, int>) {
-        int actual_min = static_cast<int>(min_val);
-        int actual_max = static_cast<int>(max_val);
-        if (actual_min == 0 && actual_max == 0) {
-            actual_min = 1;
-            actual_max = 100;
-        }
-        return generate_random_int_(actual_min, actual_max);
-    } else if constexpr (std::is_same_v<T, std::complex<double>>) {
-        double real_min = 0.0, real_max = 1.0;
-        double imag_min = 0.0, imag_max = 1.0;
-
-        if (min_val != std::complex<double>{} || max_val != std::complex<double>{}) {
-            real_min = min_val.real();
-            real_max = max_val.real();
-            imag_min = min_val.imag();
-            imag_max = max_val.imag();
-        }
-
-        return std::complex<double>(generate_random_double_(real_min, real_max),
-                                    generate_random_double_(imag_min, imag_max));
-    } else if constexpr (std::is_same_v<T, std::complex<float>>) {
-        float real_min = 0.0f, real_max = 1.0f;
-        float imag_min = 0.0f, imag_max = 1.0f;
-
-        if (min_val != std::complex<float>{} || max_val != std::complex<float>{}) {
-            real_min = min_val.real();
-            real_max = max_val.real();
-            imag_min = min_val.imag();
-            imag_max = max_val.imag();
-        }
-
-        return std::complex<float>(
-            static_cast<float>(generate_random_double_(real_min, real_max)),
-            static_cast<float>(generate_random_double_(imag_min, imag_max)));
-    } else if constexpr (std::is_floating_point_v<T>) {
-        double actual_min = static_cast<double>(min_val);
-        double actual_max = static_cast<double>(max_val);
-        if (actual_min == 0.0 && actual_max == 0.0) {
-            actual_min = 0.0;
-            actual_max = 1.0;
-        }
-        return generate_random_double_(actual_min, actual_max);
-    } else {
-        double actual_min = 0.0;
-        double actual_max = 1.0;
-
-        if constexpr (detail::is_ordered_v<T>) {
-            actual_min = static_cast<double>(min_val);
-            actual_max = static_cast<double>(max_val);
-        }
-
-        return T{generate_random_double_(actual_min, actual_max)};
-    }
-}
-
 template<typename T> std::optional<T> &Matrix<T>::get_determinant_() {
     return determinant_;
+}
+
+template<typename T> std::optional<T> Matrix<T>::get_determinant() const {
+    return determinant_;
+}
+
+template<typename T> int Matrix<T>::get_rows() const {
+    return rows_;
+}
+template<typename T> int Matrix<T>::get_cols() const {
+    return cols_;
+}
+template<typename T> int Matrix<T>::get_min_dim() const {
+    return min_dim_;
 }
 
 template<typename T> template<typename U> Matrix<U> Matrix<T>::cast_to() const {
@@ -259,8 +176,7 @@ std::optional<int> Matrix<T>::find_pivot_in_subcol(int row, int col) const {
     }
 }
 
-template<typename T>
-void Matrix<T>::swap_data(Matrix<T>& other) noexcept {
+template<typename T> void Matrix<T>::swap_data(Matrix<T> &other) noexcept {
     using std::swap;
     swap(rows_, other.rows_);
     swap(cols_, other.cols_);
@@ -268,8 +184,7 @@ void Matrix<T>::swap_data(Matrix<T>& other) noexcept {
     matrix_.swap(other.matrix_);
 }
 
-template<typename T>
-void swap(Matrix<T>& first, Matrix<T>& second) noexcept {
+template<typename T> void swap(Matrix<T> &first, Matrix<T> &second) noexcept {
     first.swap_data(second);
 }
 
@@ -303,11 +218,10 @@ template<typename T> void Matrix<T>::multiply_row(int target_row, T scalar) {
 
 template<typename T>
 void Matrix<T>::add_row_scaled(int target_row, int source_row, T scalar) {
-    if (target_row < 0 || target_row >= rows_ || 
-        source_row < 0 || source_row >= rows_) {
+    if (target_row < 0 || target_row >= rows_ || source_row < 0 || source_row >= rows_) {
         throw std::out_of_range("Row index out of range in add_row_scaled");
     }
-    
+
     for (int j = 0; j < cols_; ++j)
         matrix_[target_row][j] =
             matrix_[target_row][j] + matrix_[source_row][j] * scalar;
@@ -392,38 +306,6 @@ template<typename T> void Matrix<T>::detailed_print() const {
         std::cout << std::defaultfloat;
     } else {
         print(10);
-    }
-}
-
-template<typename T>
-template<typename U>
-double Matrix<T>::compute_block_norm(const U &block) {
-    using std::abs;
-
-    if constexpr (detail::is_matrix_v<U>) {
-        double norm = 0.0;
-        for (int i = 0; i < block.get_rows(); ++i) {
-            for (int j = 0; j < block.get_cols(); ++j) {
-                double val = compute_block_norm(block(i, j));
-                norm += val * val;
-            }
-        }
-        return std::sqrt(norm);
-    } else {
-        try {
-            return abs(block);
-        } catch (...) {
-            try {
-                auto squared = block * block;
-                if constexpr (std::is_convertible_v<decltype(squared), double>) {
-                    return static_cast<double>(squared);
-                } else {
-                    return 0.0;
-                }
-            } catch (...) {
-                return 0.0;
-            }
-        }
     }
 }
 

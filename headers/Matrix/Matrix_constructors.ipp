@@ -3,7 +3,7 @@ Matrix<T>::Matrix() noexcept
     : rows_(0)
     , cols_(0)
     , min_dim_(0)
-    , matrix_(nullptr) {}  
+    , matrix_(nullptr) {}
 
 template<typename T>
 Matrix<T>::Matrix(int rows, int cols)
@@ -21,9 +21,8 @@ Matrix<T>::Matrix(const Matrix &rhs)
     : rows_(rhs.rows_)
     , cols_(rhs.cols_)
     , min_dim_(rhs.min_dim_) {
-    
     alloc_matrix_();
-    
+
     for (int i = 0; i < rows_; ++i) {
         for (int j = 0; j < cols_; ++j) {
             (*this)(i, j) = rhs(i, j);
@@ -31,14 +30,13 @@ Matrix<T>::Matrix(const Matrix &rhs)
     }
 }
 
-template<typename T> 
-Matrix<T> &Matrix<T>::operator=(const Matrix &rhs) {
+template<typename T> Matrix<T> &Matrix<T>::operator=(const Matrix &rhs) {
     if (this != &rhs) {
         Matrix temp(rhs);
         swap_data(temp);
     }
     return *this;
-} 
+}
 
 template<typename T> Matrix<T> Matrix<T>::Square(int size) {
     if (size <= 0) {
@@ -81,7 +79,7 @@ Matrix<T> Matrix<T>::BlockMatrix(int rows, int cols, int block_rows, int block_c
         if (rows <= 0 || cols <= 0 || block_rows <= 0 || block_cols <= 0) {
             throw std::invalid_argument("Block matrix dimensions must be positive");
         }
-        
+
         Matrix result(rows, cols);
         for (int i = 0; i < rows; ++i) {
             for (int j = 0; j < cols; ++j) {
@@ -101,7 +99,7 @@ Matrix<T> Matrix<T>::BlockIdentity(int rows, int cols, int block_rows, int block
         if (rows <= 0 || cols <= 0 || block_rows <= 0 || block_cols <= 0) {
             throw std::invalid_argument("Block identity dimensions must be positive");
         }
-        
+
         Matrix result(rows, cols);
         int min_dim = std::min(rows, cols);
         for (int i = 0; i < min_dim; ++i) {
@@ -137,7 +135,7 @@ Matrix<T> Matrix<T>::Diagonal(int rows, int cols, const std::vector<T> &diagonal
     if (rows <= 0 || cols <= 0) {
         throw std::invalid_argument("Diagonal matrix dimensions must be positive");
     }
-    
+
     Matrix result = Matrix::Zero(static_cast<int>(rows), static_cast<int>(cols));
     int diag_size = std::min(result.get_min_dim(), static_cast<int>(diagonal.size()));
     for (int i = 0; i < diag_size; i++)
@@ -150,7 +148,7 @@ template<typename T> Matrix<T> Matrix<T>::Diagonal(const std::vector<T> &diagona
     if (diagonal.empty()) {
         throw std::invalid_argument("Diagonal vector cannot be empty");
     }
-    
+
     int min_dim = diagonal.size();
     Matrix result(min_dim, min_dim);
     for (int i = 0; i < min_dim; i++)
@@ -164,7 +162,7 @@ Matrix<T> Matrix<T>::Diagonal(int rows, int cols, T diagonal_value) {
     if (rows <= 0 || cols <= 0) {
         throw std::invalid_argument("Diagonal matrix dimensions must be positive");
     }
-    
+
     Matrix result(rows, cols);
     int min_dim = std::min(rows, cols);
     for (int i = 0; i < min_dim; i++)
@@ -223,11 +221,11 @@ template<typename T> Matrix<T> Matrix<T>::Zero(int rows) {
 template<typename T> Matrix<T> Matrix<T>::Read_vector() {
     int n;
     std::cin >> n;
-    
+
     if (n <= 0) {
         throw std::runtime_error("Matrix size must be positive when reading from input");
     }
-    
+
     if (!std::cin) {
         throw std::runtime_error("Failed to read matrix size from input");
     }

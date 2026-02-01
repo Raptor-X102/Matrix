@@ -2,7 +2,7 @@ template<typename T>
 typename Matrix<T>::norm_return_type Matrix<T>::frobenius_norm_squared() const {
     using ReturnType = typename Matrix<T>::norm_return_type;
 
-    if (rows_ == 0 || cols_ == 0) {
+    if (min_dim_ == 0) {
         return ReturnType{};
     }
 
@@ -136,6 +136,10 @@ template<typename T>
 typename Matrix<T>::norm_return_type Matrix<T>::frobenius_norm() const {
     using ReturnType = typename Matrix<T>::norm_return_type;
 
+    if (min_dim_ == 0) {
+        return ReturnType{};
+    }
+
     auto sum_squared = frobenius_norm_squared();
 
     if constexpr (detail::is_complex_v<ReturnType>) {
@@ -152,9 +156,9 @@ typename Matrix<T>::norm_return_type Matrix<T>::frobenius_norm() const {
     }
 }
 
-template<typename T> T Matrix<T>::trace() const {
+template<typename T> std::optional<T> Matrix<T>::trace() const {
     if (min_dim_ == 0) {
-        return matrix_[0][0] - matrix_[0][0];
+        return std::nullopt;
     }
 
     T result = matrix_[0][0] - matrix_[0][0];
@@ -167,6 +171,10 @@ template<typename T> T Matrix<T>::trace() const {
 }
 
 template<typename T> bool Matrix<T>::is_symmetric() const {
+    if (min_dim_ == 0) {
+        return true;
+    }
+
     if (rows_ != cols_)
         return false;
 
@@ -228,5 +236,25 @@ bool Matrix<T>::is_norm_zero(const ComputeType &norm_value) const {
         return std::abs(norm_value) < Epsilon;
     } else {
         return norm_value == ComputeType(0);
+    }
+}
+
+template<typename T>
+template<typename U>
+double Matrix<T>::compute_block_norm(const U &block) {
+    if constexpr (detail::is_matrix_v<U>) {
+        double norm = 0.0;
+        int block_rows = block.get_rows();
+        int block_cols = block.get_cols();
+        for (int i = 0; i < block_rows; ++i) {
+            for (int j = 0; j < block_cols; ++j) {
+                double val = compute_block_norm(block(i, j));
+                norm += val * val;
+            }
+        }
+        return std::sqrt(norm);
+    } else {
+        using std::abs;
+        return abs(block);
     }
 }

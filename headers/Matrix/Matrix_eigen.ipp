@@ -64,8 +64,7 @@ Matrix<ComputeType> Matrix<T>::balance_matrix() const {
                     }
                 }
             }
-        }
-        else if constexpr (std::is_integral_v<ComputeType>) {
+        } else if constexpr (std::is_integral_v<ComputeType>) {
         }
     }
 
@@ -372,7 +371,7 @@ Vector<ComputeType> Matrix<T>::back_substitution(const Matrix<ComputeType> &R,
         x = Vector<ComputeType>(n);
     }
 
-    for (int i = n - 1; i >= 0; --i) { 
+    for (int i = n - 1; i >= 0; --i) {
         ComputeType sum;
         if constexpr (detail::is_matrix_v<ComputeType>) {
             int block_rows = 1;
@@ -643,7 +642,7 @@ std::vector<ComputeType> Matrix<T>::eigenvalues_qr(int max_iterations) const {
             auto [Q, R] = H.template qr_decomposition<ComputeType>();
             H = R * Q;
         } catch (...) {
-            break; 
+            break;
         }
 
         bool converged = true;

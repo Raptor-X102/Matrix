@@ -35,8 +35,6 @@ namespace detail {
 
 template<typename T> class Matrix {
 private:
-    enum class Tranformation_types { I_TYPE = 0, II_TYPE = 1, III_TYPE = 2 };
-
     std::unique_ptr<std::unique_ptr<T[]>[]> matrix_;
     int rows_, cols_, min_dim_;
     mutable std::optional<T> determinant_ = std::nullopt;
@@ -46,6 +44,7 @@ private:
 public:
     using value_type = T;
 
+    /*============================ Matrix_constructors.ipp ============================*/
     Matrix() noexcept;
     Matrix(int rows, int cols);
     Matrix(const Matrix &rhs);
@@ -54,19 +53,6 @@ public:
 
     Matrix &operator=(const Matrix &rhs);
     Matrix &operator=(Matrix &&) = default;
-
-    T &operator()(int i, int j);
-    const T &operator()(int i, int j) const;
-
-    template<typename U> Matrix &operator+=(const Matrix<U> &rhs);
-    template<typename U> Matrix &operator-=(const Matrix<U> &rhs);
-    Matrix &operator*=(const Matrix &rhs);
-    template<typename U> Matrix &operator*=(const U &scalar);
-    template<typename U> Matrix &operator/=(const U &scalar);
-
-    bool operator==(const Matrix &rhs) const;
-    bool operator!=(const Matrix &rhs) const;
-    Matrix operator-() const;
 
     static Matrix Square(int size);
     static Matrix Rectangular(int rows, int cols);
@@ -90,7 +76,28 @@ public:
                             int num_cols);
     static Matrix
     Submatrix(const Matrix &source, int start_row, int start_col, int size);
+    Matrix get_submatrix(int start_row, int start_col, int num_rows, int num_cols) const;
 
+    /*============================= Matrix_operators.ipp =============================*/
+    T &operator()(int i, int j);
+    const T &operator()(int i, int j) const;
+
+    template<typename U> Matrix &operator+=(const Matrix<U> &rhs);
+    template<typename U> Matrix &operator-=(const Matrix<U> &rhs);
+    Matrix &operator*=(const Matrix &rhs);
+    template<typename U> Matrix &operator*=(const U &scalar);
+    template<typename U> Matrix &operator/=(const U &scalar);
+    Matrix operator-() const;
+
+    bool operator==(const Matrix &rhs) const;
+    bool operator!=(const Matrix &rhs) const;
+
+    template<typename U> operator Matrix<U>() const;
+
+    template<typename U>
+    friend std::ostream &operator<<(std::ostream &os, const Matrix<U> &matrix);
+
+    /*============================= Matrix_generators.ipp =============================*/
     static Matrix Generate_matrix(int rows,
                                   int cols,
                                   T min_val = {},
@@ -104,28 +111,27 @@ public:
                                          T target_determinant_magnitude = T{1},
                                          int iterations = Default_iterations / 10);
 
-    Matrix get_submatrix(int start_row, int start_col, int num_rows, int num_cols) const;
+    static T generate_random(T min_val, T max_val);
 
+    /*============================ Matrix_determinant.ipp ============================*/
     std::optional<T> det(int row, int col, int size) const;
     T det() const;
     std::optional<T> try_det() const;
 
+    /*============================== Matrix_inverse.ipp ==============================*/
     template<typename U = T>
     using inverse_return_type = typename detail::inverse_return_type_impl<U>::type;
 
     template<typename ComputeType = inverse_return_type<T>>
     Matrix<ComputeType> inverse() const;
 
-    template<typename U> Matrix<U> cast_to() const;
-    template<typename U> operator Matrix<U>() const;
+    /*============================== Matrix_helpers.ipp ==============================*/
+    int get_rows() const;
+    int get_cols() const;
+    int get_min_dim() const;
+    std::optional<T> get_determinant() const;
 
-    int get_rows() const { return rows_; }
-    int get_cols() const { return cols_; }
-    int get_min_dim() const { return min_dim_; }
-    std::optional<T> get_determinant() const { return determinant_; }
-
-    template<typename U>
-    friend void swap(Matrix<U>& first, Matrix<U>& second) noexcept;
+    template<typename U> friend void swap(Matrix<U> &first, Matrix<U> &second) noexcept;
 
     template<typename U = T> static bool is_equal(const U &a, const U &b);
 
@@ -145,20 +151,29 @@ public:
     void precise_print(int precision = 15) const;
     void detailed_print() const;
 
+    template<typename U> Matrix<U> cast_to() const;
+
+    template<typename ExampleType, typename ValueType>
+    static auto create_scalar(const ExampleType &example, ValueType value);
+
+    /*============================= Matrix_transpose.ipp =============================*/
     Matrix<T> transpose() const;
     Matrix<T> &transpose_in_place();
     Matrix<T> transpose_deep() const;
     Matrix<T> &transpose_deep_in_place();
 
-    template<typename U>
-    friend std::ostream &operator<<(std::ostream &os, const Matrix<U> &matrix);
-
+    /*============================= Matrix_properties.ipp =============================*/
     using norm_return_type = typename detail::norm_return_type_impl<T>::type;
 
     norm_return_type frobenius_norm() const;
     norm_return_type frobenius_norm_squared() const;
-    T trace() const;
+    std::optional<T> trace() const;
+    bool is_symmetric() const;
 
+    template<typename ComputeType>
+    bool is_norm_zero(const ComputeType &norm_value) const;
+
+    /*================================ Matrix_sqrt.ipp ================================*/
     template<typename U = T>
     using sqrt_return_type = typename detail::sqrt_return_type_impl<U>::type;
 
@@ -182,10 +197,7 @@ public:
     std::pair<Matrix<typename Matrix<T>::template sqrt_return_type<T>>, bool>
     safe_sqrt() const;
 
-    static T generate_random(T min_val, T max_val);
-
-    bool is_symmetric() const;
-
+    /*=============================== Matrix_eigen.ipp ===============================*/
     template<typename U = T>
     using eigen_return_type = typename detail::eigen_return_type_impl<U>::type;
 
@@ -216,25 +228,149 @@ public:
     template<typename ComputeType>
     Vector<ComputeType> householder_vector(const Vector<ComputeType> &x) const;
 
-    template<typename ExampleType, typename ValueType>
-    static auto create_scalar(const ExampleType &example, ValueType value);
-
-    template<typename ComputeType>
-    bool is_norm_zero(const ComputeType &norm_value) const;
-
 protected:
+    /*============================== Matrix_helpers.ipp ==============================*/
     template<typename U = T> static U identity_element(int rows, int cols);
     template<typename U = T> static U zero_element(int rows, int cols);
 
 private:
+    /*============================== Matrix_helpers.ipp ==============================*/
     void alloc_matrix_();
     void init_zero_();
+    void swap_data(Matrix &rhs) noexcept;
+    std::optional<T> &get_determinant_();
+    template<typename U> static bool is_element_zero(const U &elem);
+
+    /*============================= Matrix_generators.ipp =============================*/
+    enum class Tranformation_types { I_TYPE = 0, II_TYPE = 1, III_TYPE = 2 };
+
     void fill_upper_triangle(T min_val = {}, T max_val = {});
 
-    std::optional<T> &get_determinant_();
+    static void apply_controlled_transformations(Matrix &matrix,
+                                                 int rows,
+                                                 int cols,
+                                                 T min_val,
+                                                 T max_val,
+                                                 int iterations);
+    static std::vector<T> create_controlled_diagonal(int size,
+                                                     T min_val,
+                                                     T max_val,
+                                                     T target_determinant_magnitude);
 
-    void swap_data(Matrix& rhs) noexcept;
+    static Matrix generate_block_matrix(int rows,
+                                        int cols,
+                                        T min_val,
+                                        T max_val,
+                                        int iterations,
+                                        T target_determinant_magnitude,
+                                        T max_condition_number);
+    static Matrix generate_scalar_matrix(int rows,
+                                         int cols,
+                                         T min_val,
+                                         T max_val,
+                                         int iterations,
+                                         T target_determinant_magnitude,
+                                         T max_condition_number);
+    static void validate_generation_parameters(T &min_val,
+                                               T &max_val,
+                                               int &iterations,
+                                               T &max_condition_number);
 
+    static Matrix generate_binary_matrix_impl(int rows,
+                                              int cols,
+                                              T target_determinant_magnitude,
+                                              int iterations);
+    static std::vector<T> generate_binary_diagonal(int size);
+    static Matrix
+    create_initial_binary_matrix(int rows, int cols, const std::vector<T> &diagonal);
+    static Matrix apply_binary_transformations(Matrix &matrix,
+                                               int min_dim,
+                                               int rows,
+                                               int cols,
+                                               int iterations);
+    static T compute_initial_determinant(const Matrix &matrix, int min_dim);
+    static void apply_random_binary_transformation(Matrix &matrix,
+                                                   int rows,
+                                                   int cols,
+                                                   T &effective_det,
+                                                   T &sign);
+    static void apply_binary_transformation_I(Matrix &matrix, int rows, T &sign);
+    static void
+    apply_binary_transformation_II(Matrix &matrix, int rows, T &effective_det);
+    static void apply_binary_transformation_III(Matrix &matrix, int rows, int cols);
+
+    static std::vector<T> create_integer_diagonal(int size,
+                                                  T min_val,
+                                                  T max_val,
+                                                  T target_determinant_magnitude);
+    static std::vector<T> create_numeric_diagonal(int size,
+                                                  T min_val,
+                                                  T max_val,
+                                                  T target_determinant_magnitude);
+    static T find_best_last_element(T current_product,
+                                    T min_val,
+                                    T max_val,
+                                    T target_determinant_magnitude);
+    static int generate_random_int_(int min = 1, int max = 100);
+    static double generate_random_double_(double min = 0.0, double max = 1.0);
+    static T generate_nonzero_random(T min_val, T max_val);
+    static T normalize_element(T element);
+    static T compute_last_element(T current_product, T target_determinant_magnitude);
+    static T clamp_extreme_value(T value);
+
+    static T compute_diagonal_product(const Matrix &matrix, int rows, int cols);
+    static void apply_single_transformation(Matrix &matrix,
+                                            int rows,
+                                            int cols,
+                                            T min_val,
+                                            T max_val,
+                                            T &effective_det,
+                                            int &sign);
+    static Tranformation_types select_random_transformation();
+    static void apply_type_I_transformation(Matrix &matrix, int rows, int &sign);
+    static void apply_type_II_transformation(Matrix &matrix,
+                                             int rows,
+                                             int cols,
+                                             T min_val,
+                                             T max_val,
+                                             T &effective_det);
+    static void apply_type_III_transformation(Matrix &matrix,
+                                              int rows,
+                                              int cols,
+                                              T min_val,
+                                              T max_val);
+    static T clamp_integer_scalar(T scalar);
+    static T clamp_numeric_scalar(T scalar);
+    static T clamp_transformation_scalar(T scalar);
+    static bool is_safe_for_integer_multiplication(const Matrix &matrix,
+                                                   int row,
+                                                   int cols,
+                                                   T scalar,
+                                                   T min_val,
+                                                   T max_val);
+    static bool is_safe_for_numeric_multiplication(const Matrix &matrix,
+                                                   int row,
+                                                   int cols,
+                                                   T scalar,
+                                                   T min_val,
+                                                   T max_val);
+    static void
+    apply_integer_multiplication(Matrix &matrix, int row, T scalar, T &effective_det);
+    static void
+    apply_numeric_multiplication(Matrix &matrix, int row, T scalar, T &effective_det);
+    static void
+    stabilize_integer_determinant(Matrix &matrix, int rows, int cols, T &effective_det);
+    static bool needs_stabilization(T effective_det);
+    static bool is_safe_for_addition(const Matrix &matrix,
+                                     int row1,
+                                     int row2,
+                                     int cols,
+                                     T scalar,
+                                     T min_val,
+                                     T max_val);
+    static void stabilize_matrix(Matrix &matrix, int rows, int cols, T &effective_det);
+
+    /*============================== Matrix_inverse.ipp ==============================*/
     template<typename ComputeType, bool IsBlockMatrix>
     Matrix<ComputeType> create_augmented_matrix() const;
 
@@ -250,100 +386,16 @@ private:
     template<typename ComputeType, bool IsBlockMatrix, bool UseAbs>
     void eliminate_other_rows(Matrix<ComputeType> &augmented, int pivot_row) const;
 
-    static void apply_transformation_type_I(Matrix &matrix, int rows);
-    static void apply_transformation_type_II(Matrix &matrix,
-                                             int rows,
-                                             int cols,
-                                             T min_val,
-                                             T max_val,
-                                             T &effective_det);
-    static void apply_transformation_type_III(Matrix &matrix,
-                                              int rows,
-                                              int cols,
-                                              T min_val,
-                                              T max_val);
-    static void apply_controlled_transformations(Matrix &matrix,
-                                                 int rows,
-                                                 int cols,
-                                                 T min_val,
-                                                 T max_val,
-                                                 int iterations);
-    static std::vector<T> create_controlled_diagonal(int size,
-                                                     T min_val,
-                                                     T max_val,
-                                                     T target_determinant_magnitude);
-
-    static Matrix generate_block_matrix(int rows, int cols, T min_val, T max_val,
-                                        int iterations, T target_determinant_magnitude,
-                                        T max_condition_number);
-    static Matrix generate_scalar_matrix(int rows, int cols, T min_val, T max_val,
-                                         int iterations, T target_determinant_magnitude,
-                                         T max_condition_number);
-    static void validate_generation_parameters(T& min_val, T& max_val,
-                                               int& iterations, T& max_condition_number);
-
-    static Matrix generate_binary_matrix_impl(int rows, int cols,
-                                              T target_determinant_magnitude,
-                                              int iterations);
-    static std::vector<T> generate_binary_diagonal(int size);
-    static Matrix create_initial_binary_matrix(int rows, int cols,
-                                               const std::vector<T>& diagonal);
-    static Matrix apply_binary_transformations(Matrix& matrix, int min_dim,
-                                               int rows, int cols, int iterations);
-    static T compute_initial_determinant(const Matrix& matrix, int min_dim);
-    static void apply_random_binary_transformation(Matrix& matrix, int rows, int cols,
-                                                   T& effective_det, T& sign);
-    static void apply_binary_transformation_I(Matrix& matrix, int rows, T& sign);
-    static void apply_binary_transformation_II(Matrix& matrix, int rows, T& effective_det);
-    static void apply_binary_transformation_III(Matrix& matrix, int rows, int cols);
-
-    static std::vector<T> create_integer_diagonal(int size, T min_val, T max_val,
-                                                  T target_determinant_magnitude);
-    static std::vector<T> create_numeric_diagonal(int size, T min_val, T max_val,
-                                                  T target_determinant_magnitude);
-    static T find_best_last_element(T current_product, T min_val, T max_val,
-                                    T target_determinant_magnitude);
-    static T generate_nonzero_random(T min_val, T max_val);
-    static T normalize_element(T element);
-    static T compute_last_element(T current_product, T target_determinant_magnitude);
-    static T clamp_extreme_value(T value);
-
-    static T compute_diagonal_product(const Matrix &matrix, int rows, int cols);
-    static void apply_single_transformation(Matrix &matrix, int rows, int cols,
-                                           T min_val, T max_val, T &effective_det, int &sign);
-    static Tranformation_types select_random_transformation();
-    static void apply_type_I_transformation(Matrix &matrix, int rows, int &sign);
-    static void apply_type_II_transformation(Matrix &matrix, int rows, int cols,
-                                            T min_val, T max_val, T &effective_det);
-    static void apply_type_III_transformation(Matrix &matrix, int rows, int cols,
-                                             T min_val, T max_val);
-    static T clamp_integer_scalar(T scalar);
-    static T clamp_numeric_scalar(T scalar);
-    static T clamp_transformation_scalar(T scalar);
-    static bool is_safe_for_integer_multiplication(const Matrix &matrix, int row, int cols,
-                                                  T scalar, T min_val, T max_val);
-    static bool is_safe_for_numeric_multiplication(const Matrix &matrix, int row, int cols,
-                                                  T scalar, T min_val, T max_val);
-    static void apply_integer_multiplication(Matrix &matrix, int row, T scalar, T &effective_det);
-    static void apply_numeric_multiplication(Matrix &matrix, int row, T scalar, T &effective_det);
-    static void stabilize_integer_determinant(Matrix &matrix, int rows, int cols, T &effective_det);
-    static bool needs_stabilization(T effective_det);
-    static bool is_safe_for_addition(const Matrix &matrix, int row1, int row2, int cols,
-                                    T scalar, T min_val, T max_val);
-    static void stabilize_matrix(Matrix &matrix, int rows, int cols, T &effective_det);
-
+    /*============================ Matrix_determinant.ipp ============================*/
     std::optional<T> det_integer_algorithm(int row, int col, int size) const;
 
     template<typename U = T>
     std::optional<T> det_numeric_impl(int row, int col, int size) const;
 
-    static int generate_random_int_(int min = 1, int max = 100);
-    static double generate_random_double_(double min = 0.0, double max = 1.0);
-
+    /*============================= Matrix_properties.ipp =============================*/
     template<typename U> static double compute_block_norm(const U &block);
 
-    template<typename U> static bool is_element_zero(const U &elem);
-
+    /*============================= Matrix_transpose.ipp =============================*/
     enum class TransposeAlgorithm { SIMPLE, BLOCKED, SIMD_BLOCKED };
 
     TransposeAlgorithm select_transpose_algorithm() const;
@@ -369,6 +421,7 @@ private:
                                      int rows_in_block,
                                      int cols_in_block) const;
 
+    /*=============================== Matrix_eigen.ipp ===============================*/
     template<typename ComputeType>
     void apply_householder_left(Matrix<ComputeType> &A,
                                 const Vector<ComputeType> &v,
@@ -402,9 +455,9 @@ private:
 
     static constexpr int Default_max_iterations = 2000;
     template<typename ComputeType> Matrix<ComputeType> balance_matrix() const;
+}; // class Matrix
 
-};
-
+/*========================= Matrix_operators.ipp =========================*/
 template<typename T, typename U>
 auto operator+(const Matrix<T> &lhs, const Matrix<U> &rhs);
 
