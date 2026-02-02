@@ -136,6 +136,9 @@ make clean
 
 ## Использование библиотеки
 
+<details>
+<summary>Показать синтаксис</summary>
+
 ### Базовое создание матриц
 
 ```cpp
@@ -349,6 +352,8 @@ M.detailed_print();
 Matrix<int> int_mat(2, 2);
 Matrix<double> double_mat = int_mat.cast_to<double>();
 ```
+
+</details>
 
 ## Тестирование
 
