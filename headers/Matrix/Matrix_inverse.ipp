@@ -1,6 +1,10 @@
 template<typename T>
 template<typename ComputeType>
 Matrix<ComputeType> Matrix<T>::inverse() const {
+    if (min_dim_ == 0) {
+        throw std::invalid_argument("Cannot invert empty matrix");
+    }
+
     if (rows_ != cols_) {
         throw std::invalid_argument("Matrix must be square");
     }
@@ -20,10 +24,12 @@ Matrix<ComputeType> Matrix<T>::inverse() const {
 template<typename T>
 template<typename ComputeType, bool IsBlockMatrix>
 Matrix<ComputeType> Matrix<T>::create_augmented_matrix() const {
+    // caller checked if matrix is empty
     int n = rows_;
 
     if constexpr (IsBlockMatrix) {
         using InnerType = typename T::value_type;
+
         int block_rows = (*this)(0, 0).get_rows();
         int block_cols = (*this)(0, 0).get_cols();
 
@@ -31,14 +37,26 @@ Matrix<ComputeType> Matrix<T>::create_augmented_matrix() const {
 
         for (int i = 0; i < n; ++i) {
             for (int j = 0; j < n; ++j) {
-                augmented(i, j) = (*this)(i, j);
+                try {
+                    augmented(i, j) = (*this)(i, j);
+                } catch (...) {
+                    throw std::runtime_error("Failed to copy block at position ("
+                                             + std::to_string(i) + ", "
+                                             + std::to_string(j) + ")");
+                }
             }
 
             for (int j = 0; j < n; ++j) {
-                if (i == j) {
-                    augmented(i, n + j) = T::Identity(block_rows, block_cols);
-                } else {
-                    augmented(i, n + j) = T::Zero(block_rows, block_cols);
+                try {
+                    if (i == j) {
+                        augmented(i, n + j) = T::Identity(block_rows, block_cols);
+                    } else {
+                        augmented(i, n + j) = T::Zero(block_rows, block_cols);
+                    }
+                } catch (...) {
+                    throw std::runtime_error(
+                        "Failed to create identity/zero block at position ("
+                        + std::to_string(i) + ", " + std::to_string(n + j) + ")");
                 }
             }
         }
@@ -49,9 +67,21 @@ Matrix<ComputeType> Matrix<T>::create_augmented_matrix() const {
 
         for (int i = 0; i < n; ++i) {
             for (int j = 0; j < n; ++j) {
-                augmented(i, j) = static_cast<ComputeType>((*this)(i, j));
+                try {
+                    augmented(i, j) = static_cast<ComputeType>((*this)(i, j));
+                } catch (...) {
+                    throw std::runtime_error("Failed to convert element at position ("
+                                             + std::to_string(i) + ", "
+                                             + std::to_string(j) + ")");
+                }
             }
-            augmented(i, n + i) = ComputeType(1);
+            try {
+                augmented(i, n + i) = ComputeType(1);
+            } catch (...) {
+                throw std::runtime_error("Failed to set identity element at position ("
+                                         + std::to_string(i) + ", "
+                                         + std::to_string(n + i) + ")");
+            }
         }
 
         return augmented;
@@ -62,12 +92,20 @@ template<typename T>
 template<typename ComputeType>
 Matrix<ComputeType>
 Matrix<T>::extract_inverse(const Matrix<ComputeType> &augmented) const {
+    // caller checked if matrix is empty
     int n = augmented.get_rows();
+
     Matrix<ComputeType> inv(n, n);
 
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < n; ++j) {
-            inv(i, j) = augmented(i, n + j);
+            try {
+                inv(i, j) = augmented(i, n + j);
+            } catch (...) {
+                throw std::runtime_error(
+                    "Failed to extract inverse element at position (" + std::to_string(i)
+                    + ", " + std::to_string(j) + ")");
+            }
         }
     }
 
@@ -77,98 +115,150 @@ Matrix<T>::extract_inverse(const Matrix<ComputeType> &augmented) const {
 template<typename T>
 template<typename ComputeType, bool IsBlockMatrix, bool UseAbs>
 Matrix<ComputeType> Matrix<T>::inverse_impl() const {
+    // caller checked if matrix is empty
     int n = rows_;
 
-    if (n == 0) {
-        return Matrix<ComputeType>();
+    Matrix<ComputeType> augmented;
+    try {
+        augmented = create_augmented_matrix<ComputeType, IsBlockMatrix>();
+    } catch (const std::exception &e) {
+        throw std::runtime_error("Failed to create augmented matrix: "
+                                 + std::string(e.what()));
     }
-
-    Matrix<ComputeType> augmented =
-        create_augmented_matrix<ComputeType, IsBlockMatrix>();
 
     for (int k = 0; k < n; ++k) {
         int pivot_row = -1;
 
-        if constexpr (UseAbs) {
-            double max_norm = 0.0;
+        try {
+            if constexpr (UseAbs) {
+                double max_norm = 0.0;
 
-            for (int i = k; i < n; ++i) {
-                double norm = 0.0;
+                for (int i = k; i < n; ++i) {
+                    double norm = 0.0;
 
-                if constexpr (IsBlockMatrix) {
-                    norm = compute_block_norm(augmented(i, k));
-                } else {
-                    using std::abs;
-                    norm = abs(augmented(i, k));
+                    if constexpr (IsBlockMatrix) {
+                        norm = compute_block_norm(augmented(i, k));
+                    } else {
+                        using std::abs;
+                        norm = abs(augmented(i, k));
+                    }
+
+                    if (norm > max_norm) {
+                        max_norm = norm;
+                        pivot_row = i;
+                    }
                 }
 
-                if (norm > max_norm) {
-                    max_norm = norm;
-                    pivot_row = i;
+                if (max_norm < Epsilon) {
+                    throw std::runtime_error("Matrix is singular - all zero column");
+                }
+            } else {
+                for (int i = k; i < n; ++i) {
+                    bool is_non_zero = false;
+
+                    if constexpr (IsBlockMatrix) {
+                        is_non_zero = (compute_block_norm(augmented(i, k)) >= Epsilon);
+                    } else {
+                        is_non_zero = !is_element_zero(augmented(i, k));
+                    }
+
+                    if (is_non_zero) {
+                        pivot_row = i;
+                        break;
+                    }
+                }
+
+                if (pivot_row == -1) {
+                    throw std::runtime_error("Matrix is singular - all zero column");
                 }
             }
-
-            if (max_norm < Epsilon) {
-                throw std::runtime_error("Matrix is singular - all zero column");
-            }
-        } else {
-            for (int i = k; i < n; ++i) {
-                bool is_non_zero = false;
-
-                if constexpr (IsBlockMatrix) {
-                    is_non_zero = (compute_block_norm(augmented(i, k)) >= Epsilon);
-                } else {
-                    is_non_zero = !is_element_zero(augmented(i, k));
-                }
-
-                if (is_non_zero) {
-                    pivot_row = i;
-                    break;
-                }
-            }
-
-            if (pivot_row == -1) {
-                throw std::runtime_error("Matrix is singular - all zero column");
-            }
+        } catch (const std::exception &e) {
+            throw std::runtime_error("Failed to find pivot in column "
+                                     + std::to_string(k) + ": " + e.what());
         }
 
         if (pivot_row != k) {
-            augmented.swap_rows(k, pivot_row);
+            try {
+                augmented.swap_rows(k, pivot_row);
+            } catch (...) {
+                throw std::runtime_error("Failed to swap rows " + std::to_string(k)
+                                         + " and " + std::to_string(pivot_row));
+            }
         }
 
         try {
             normalize_row<ComputeType, IsBlockMatrix>(augmented, k);
         } catch (const std::exception &e) {
-            std::string error = "Failed to normalize row: ";
-            error += e.what();
-            throw std::runtime_error(error);
+            throw std::runtime_error("Failed to normalize row " + std::to_string(k)
+                                     + ": " + e.what());
         }
 
-        eliminate_other_rows<ComputeType, IsBlockMatrix, UseAbs>(augmented, k);
+        try {
+            eliminate_other_rows<ComputeType, IsBlockMatrix, UseAbs>(augmented, k);
+        } catch (const std::exception &e) {
+            throw std::runtime_error("Failed to eliminate rows with pivot at row "
+                                     + std::to_string(k) + ": " + e.what());
+        }
     }
 
-    return extract_inverse<ComputeType>(augmented);
+    try {
+        return extract_inverse<ComputeType>(augmented);
+    } catch (const std::exception &e) {
+        throw std::runtime_error("Failed to extract inverse: " + std::string(e.what()));
+    }
 }
 
 template<typename T>
 template<typename ComputeType, bool IsBlockMatrix>
 void Matrix<T>::normalize_row(Matrix<ComputeType> &augmented, int row) const {
     int n = augmented.get_rows();
-    ComputeType pivot = augmented(row, row);
+
+    if (row >= n) {
+        throw std::out_of_range("Row index out of range in normalize_row");
+    }
+
+    ComputeType pivot;
+    try {
+        pivot = augmented(row, row);
+    } catch (...) {
+        throw std::runtime_error("Failed to access pivot element at ("
+                                 + std::to_string(row) + ", " + std::to_string(row)
+                                 + ")");
+    }
 
     if (is_element_zero(pivot)) {
         throw std::runtime_error("Matrix is singular - zero pivot");
     }
 
-    if constexpr (IsBlockMatrix) {
-        ComputeType pivot_inv = pivot.inverse();
-        for (int j = row; j < 2 * n; ++j) {
-            augmented(row, j) = pivot_inv * augmented(row, j);
+    try {
+        if constexpr (IsBlockMatrix) {
+            ComputeType pivot_inv;
+            try {
+                pivot_inv = pivot.inverse();
+            } catch (...) {
+                throw std::runtime_error("Failed to invert pivot block");
+            }
+
+            for (int j = row; j < 2 * n; ++j) {
+                try {
+                    augmented(row, j) = pivot_inv * augmented(row, j);
+                } catch (...) {
+                    throw std::runtime_error("Failed to multiply row element at column "
+                                             + std::to_string(j));
+                }
+            }
+        } else {
+            for (int j = row; j < 2 * n; ++j) {
+                try {
+                    augmented(row, j) = augmented(row, j) / pivot;
+                } catch (...) {
+                    throw std::runtime_error("Failed to divide row element at column "
+                                             + std::to_string(j));
+                }
+            }
         }
-    } else {
-        for (int j = row; j < 2 * n; ++j) {
-            augmented(row, j) = augmented(row, j) / pivot;
-        }
+    } catch (const std::exception &e) {
+        throw std::runtime_error("Error in row normalization: " + std::string(e.what()));
     }
 }
 
@@ -178,21 +268,49 @@ void Matrix<T>::eliminate_other_rows(Matrix<ComputeType> &augmented,
                                      int pivot_row) const {
     int n = augmented.get_rows();
 
+    if (pivot_row >= n) {
+        throw std::out_of_range("Pivot row index out of range");
+    }
+
     for (int i = 0; i < n; ++i) {
         if (i != pivot_row) {
-            ComputeType factor;
+            try {
+                ComputeType factor;
 
-            if constexpr (IsBlockMatrix) {
-                factor =
-                    augmented(i, pivot_row) * augmented(pivot_row, pivot_row).inverse();
-            } else {
-                factor = augmented(i, pivot_row) / augmented(pivot_row, pivot_row);
-            }
-
-            if (!is_element_zero(factor)) {
-                for (int j = pivot_row; j < 2 * n; ++j) {
-                    augmented(i, j) = augmented(i, j) - factor * augmented(pivot_row, j);
+                if constexpr (IsBlockMatrix) {
+                    try {
+                        factor = augmented(i, pivot_row)
+                                 * augmented(pivot_row, pivot_row).inverse();
+                    } catch (...) {
+                        throw std::runtime_error("Failed to compute factor for row "
+                                                 + std::to_string(i));
+                    }
+                } else {
+                    try {
+                        factor =
+                            augmented(i, pivot_row) / augmented(pivot_row, pivot_row);
+                    } catch (...) {
+                        throw std::runtime_error("Failed to compute factor for row "
+                                                 + std::to_string(i));
+                    }
                 }
+
+                if (!is_element_zero(factor)) {
+                    for (int j = pivot_row; j < 2 * n; ++j) {
+                        try {
+                            augmented(i, j) =
+                                augmented(i, j) - factor * augmented(pivot_row, j);
+                        } catch (...) {
+                            throw std::runtime_error(
+                                "Failed to eliminate element at column "
+                                + std::to_string(j) + " in row " + std::to_string(i));
+                        }
+                    }
+                }
+            } catch (const std::exception &e) {
+                throw std::runtime_error("Error eliminating row " + std::to_string(i)
+                                         + " with pivot row " + std::to_string(pivot_row)
+                                         + ": " + e.what());
             }
         }
     }

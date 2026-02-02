@@ -4,11 +4,18 @@ Vector<T>::Vector()
 
 template<typename T>
 Vector<T>::Vector(int size)
-    : Matrix<T>(size, 1) {}
+    : Matrix<T>(size, 1) {
+    if (size < 0) {
+        throw std::invalid_argument("Vector size cannot be negative");
+    }
+}
 
 template<typename T>
 Vector<T>::Vector(int size, T initial_value)
     : Matrix<T>(size, 1) {
+    if (size < 0) {
+        throw std::invalid_argument("Vector size cannot be negative");
+    }
     for (int i = 0; i < size; ++i) {
         Matrix<T>::operator()(i, 0) = initial_value;
     }
@@ -25,6 +32,9 @@ Vector<T>::Vector(const std::vector<T> &data)
 template<typename T>
 Vector<T>::Vector(const Matrix<T> &matrix)
     : Matrix<T>(matrix.get_rows() * matrix.get_cols(), 1) {
+    if (matrix.get_rows() <= 0 || matrix.get_cols() <= 0) {
+        throw std::invalid_argument("Matrix must have positive dimensions");
+    }
     int idx = 0;
     for (int i = 0; i < matrix.get_rows(); ++i) {
         for (int j = 0; j < matrix.get_cols(); ++j) {
@@ -45,7 +55,7 @@ template<typename T> Vector<T> Vector<T>::from_row(const Matrix<T> &matrix) {
     return result;
 }
 
-template<typename T> static Vector<T> from_column(const Matrix<T> &matrix, int col) {
+template<typename T> Vector<T> Vector<T>::from_column(const Matrix<T> &matrix, int col) {
     if (col < 0 || col >= matrix.get_cols()) {
         throw std::invalid_argument("Column index out of bounds");
     }

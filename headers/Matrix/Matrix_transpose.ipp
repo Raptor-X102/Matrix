@@ -1,5 +1,5 @@
 template<typename T> Matrix<T> Matrix<T>::transpose() const {
-    if (rows_ == 0 || cols_ == 0) {
+    if (min_dim_ == 0) {
         return Matrix<T>(cols_, rows_);
     }
 
@@ -11,6 +11,10 @@ template<typename T> Matrix<T> Matrix<T>::transpose() const {
 }
 
 template<typename T> Matrix<T> &Matrix<T>::transpose_in_place() {
+    if (min_dim_ == 0) {
+        return *this;
+    }
+
     if (rows_ != cols_) {
         throw std::invalid_argument("Cannot transpose non-square matrix in place");
     }
@@ -26,6 +30,10 @@ template<typename T> Matrix<T> &Matrix<T>::transpose_in_place() {
 }
 
 template<typename T> void Matrix<T>::transpose_impl(Matrix<T> &result) const {
+    if (min_dim_ == 0) {
+        return;
+    }
+
     TransposeAlgorithm algorithm = select_transpose_algorithm();
 
     switch (algorithm) {
@@ -52,6 +60,10 @@ template<typename T> void Matrix<T>::transpose_impl(Matrix<T> &result) const {
 
 template<typename T>
 typename Matrix<T>::TransposeAlgorithm Matrix<T>::select_transpose_algorithm() const {
+    if (min_dim_ == 0) {
+        return TransposeAlgorithm::SIMPLE;
+    }
+
     if (is_small_matrix()) {
         return TransposeAlgorithm::SIMPLE;
     }
@@ -76,6 +88,10 @@ template<typename T> bool Matrix<T>::is_small_matrix() const {
 }
 
 template<typename T> bool Matrix<T>::should_use_blocking() const {
+    if (min_dim_ == 0) {
+        return false;
+    }
+
     if (rows_ < 32 && cols_ < 32) {
         return false;
     }
@@ -95,6 +111,10 @@ template<typename T> bool Matrix<T>::should_use_blocking() const {
 }
 
 template<typename T> int Matrix<T>::compute_optimal_block_size() const {
+    if (min_dim_ == 0) {
+        return 8;
+    }
+
     constexpr int CACHE_LINE_SIZE = 64;
 
     if constexpr (sizeof(T) == 0) {
@@ -126,6 +146,10 @@ template<typename T> void Matrix<T>::transpose_simple(Matrix<T> &result) const {
 }
 
 template<typename T> void Matrix<T>::transpose_blocked(Matrix<T> &result) const {
+    if (min_dim_ == 0) {
+        return;
+    }
+
     const int block_size = compute_optimal_block_size();
 
     if (block_size <= 2) {
@@ -138,6 +162,11 @@ template<typename T> void Matrix<T>::transpose_blocked(Matrix<T> &result) const 
 
 template<typename T>
 void Matrix<T>::transpose_blocked_impl(Matrix<T> &result, int block_size) const {
+    if (block_size <= 0) {
+        transpose_simple(result);
+        return;
+    }
+
     for (int outer_i = 0; outer_i < rows_; outer_i += block_size) {
         for (int outer_j = 0; outer_j < cols_; outer_j += block_size) {
             const int i_end = std::min(outer_i + block_size, rows_);
@@ -153,6 +182,10 @@ void Matrix<T>::transpose_blocked_impl(Matrix<T> &result, int block_size) const 
 }
 
 template<> void Matrix<int>::transpose_simple(Matrix<int> &result) const {
+    if (min_dim_ == 0) {
+        return;
+    }
+
     if (rows_ == 1) {
         for (int j = 0; j < cols_; ++j) {
             result.matrix_[j][0] = matrix_[0][j];
@@ -205,6 +238,10 @@ template<> void Matrix<int>::transpose_simple(Matrix<int> &result) const {
 template<typename T>
 template<typename U, int SIMD_WIDTH>
 void Matrix<T>::transpose_simd_blocked(Matrix<U> &result) const {
+    if (min_dim_ == 0) {
+        return;
+    }
+
     constexpr int BLOCK_SIZE = 64;
     constexpr int SIMD_LANES = SIMD_WIDTH;
 
@@ -243,6 +280,10 @@ void Matrix<T>::transpose_block_simd_float(Matrix<float> &result,
                                            int start_j,
                                            int rows_in_block,
                                            int cols_in_block) const {
+    if (rows_in_block == 0 || cols_in_block == 0) {
+        return;
+    }
+
     __m256 rows[8];
     for (int i = 0; i < rows_in_block; ++i) {
         float temp[8] = {0};
@@ -304,6 +345,10 @@ void Matrix<T>::transpose_block_simd_double(Matrix<double> &result,
                                             int start_j,
                                             int rows_in_block,
                                             int cols_in_block) const {
+    if (rows_in_block == 0 || cols_in_block == 0) {
+        return;
+    }
+
     __m256d rows[4];
     for (int i = 0; i < rows_in_block; ++i) {
         double temp[4] = {0};
@@ -351,16 +396,22 @@ template<typename T> Matrix<T> Matrix<T>::transpose_deep() const {
 
 template<typename T> Matrix<T> Matrix<T>::transpose_deep_impl() const {
     if constexpr (detail::is_matrix_v<T>) {
+        if (min_dim_ == 0) {
+            return Matrix<T>(cols_, rows_);
+        }
+
         Matrix<T> result(cols_, rows_);
 
         for (int i = 0; i < rows_; ++i) {
             for (int j = 0; j < cols_; ++j) {
-                result.matrix_[j][i] = matrix_[i][j].transpose_deep();
+                try {
+                    result.matrix_[j][i] = matrix_[i][j].transpose_deep();
+                } catch (...) {
+                    throw std::runtime_error(
+                        "Failed to transpose deep block at position ("
+                        + std::to_string(i) + ", " + std::to_string(j) + ")");
+                }
             }
-        }
-
-        if (determinant_) {
-            result.determinant_ = determinant_->transpose_deep();
         }
 
         return result;
@@ -370,6 +421,10 @@ template<typename T> Matrix<T> Matrix<T>::transpose_deep_impl() const {
 }
 
 template<typename T> Matrix<T> &Matrix<T>::transpose_deep_in_place() {
+    if (min_dim_ == 0) {
+        return *this;
+    }
+
     if (rows_ != cols_) {
         throw std::invalid_argument("Cannot transpose non-square matrix in place");
     }
@@ -383,12 +438,14 @@ template<typename T> Matrix<T> &Matrix<T>::transpose_deep_in_place() {
 
         for (int i = 0; i < rows_; ++i) {
             for (int j = 0; j < cols_; ++j) {
-                matrix_[i][j].transpose_deep_in_place();
+                try {
+                    matrix_[i][j].transpose_deep_in_place();
+                } catch (...) {
+                    throw std::runtime_error(
+                        "Failed to transpose deep in place block at position ("
+                        + std::to_string(i) + ", " + std::to_string(j) + ")");
+                }
             }
-        }
-
-        if (determinant_) {
-            determinant_->transpose_deep_in_place();
         }
     } else {
         return transpose_in_place();

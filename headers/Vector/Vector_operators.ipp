@@ -1,9 +1,15 @@
 template<typename T> Vector<T> &Vector<T>::operator+=(const Vector<T> &other) {
+    if (this->size() != other.size()) {
+        throw std::invalid_argument("Vector sizes must match for addition");
+    }
     Matrix<T>::operator+=(other);
     return *this;
 }
 
 template<typename T> Vector<T> &Vector<T>::operator-=(const Vector<T> &other) {
+    if (this->size() != other.size()) {
+        throw std::invalid_argument("Vector sizes must match for subtraction");
+    }
     Matrix<T>::operator-=(other);
     return *this;
 }
@@ -14,6 +20,9 @@ template<typename T> Vector<T> &Vector<T>::operator*=(T scalar) {
 }
 
 template<typename T> Vector<T> &Vector<T>::operator/=(T scalar) {
+    if (Matrix<T>::is_zero(scalar)) {
+        throw std::runtime_error("Division by zero");
+    }
     Matrix<T>::operator/=(scalar);
     return *this;
 }
@@ -28,6 +37,9 @@ template<typename T> template<typename U> Vector<T>::operator Vector<U>() const 
 
 template<typename T, typename U>
 auto operator+(const Vector<T> &lhs, const Vector<U> &rhs) {
+    if (lhs.size() != rhs.size()) {
+        throw std::invalid_argument("Vector sizes must match for addition");
+    }
     using CommonType = typename detail::matrix_common_type<T, U>::type;
     Vector<CommonType> result(lhs.size());
     for (int i = 0; i < lhs.size(); ++i) {
@@ -38,6 +50,9 @@ auto operator+(const Vector<T> &lhs, const Vector<U> &rhs) {
 
 template<typename T, typename U>
 auto operator-(const Vector<T> &lhs, const Vector<U> &rhs) {
+    if (lhs.size() != rhs.size()) {
+        throw std::invalid_argument("Vector sizes must match for subtraction");
+    }
     using CommonType = typename detail::matrix_common_type<T, U>::type;
     Vector<CommonType> result(lhs.size());
     for (int i = 0; i < lhs.size(); ++i) {
@@ -78,6 +93,27 @@ template<typename T, typename U> auto operator*(const Vector<T> &vec, const U &s
 }
 
 template<typename T, typename U> auto operator/(const Vector<T> &vec, const U &scalar) {
+    // Use the static is_zero method from Matrix
+    if constexpr (std::is_same_v<T, U>) {
+        if (Matrix<T>::is_zero(scalar)) {
+            throw std::runtime_error("Division by zero");
+        }
+    } else {
+        // For cross-type operations, use arithmetic check for basic types
+        if constexpr (std::is_arithmetic_v<U>) {
+            if (scalar == U{}) {
+                throw std::runtime_error("Division by zero");
+            }
+        } else if constexpr (detail::is_complex_v<U>) {
+            using ValueType = typename U::value_type;
+            if (std::abs(scalar.real()) < std::numeric_limits<ValueType>::epsilon()
+                && std::abs(scalar.imag()) < std::numeric_limits<ValueType>::epsilon()) {
+                throw std::runtime_error("Division by zero");
+            }
+        }
+        // For other types, rely on underlying division behavior
+    }
+
     using ResultType = typename detail::matrix_common_type<T, U>::type;
     Vector<ResultType> result(vec.size());
 

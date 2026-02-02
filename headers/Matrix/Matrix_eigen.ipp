@@ -3,6 +3,14 @@
 template<typename T>
 template<typename ComputeType>
 Matrix<ComputeType> Matrix<T>::balance_matrix() const {
+    if (min_dim_ == 0) {
+        return Matrix<ComputeType>();
+    }
+
+    if (rows_ != cols_) {
+        throw std::invalid_argument("Matrix must be square for balancing");
+    }
+
     auto A = this->template cast_to<ComputeType>();
     int n = rows_;
 
@@ -18,8 +26,12 @@ Matrix<ComputeType> Matrix<T>::balance_matrix() const {
             const RealType balance_threshold = RealType(0.95);
 
             bool converged = false;
-            while (!converged) {
+            int max_iterations = 100;
+            int iteration = 0;
+
+            while (!converged && iteration < max_iterations) {
                 converged = true;
+                iteration++;
 
                 for (int i = 0; i < n; ++i) {
                     RealType row_norm = RealType{0};
@@ -27,9 +39,14 @@ Matrix<ComputeType> Matrix<T>::balance_matrix() const {
 
                     for (int j = 0; j < n; ++j) {
                         if (j != i) {
-                            using std::abs;
-                            row_norm += abs(A(i, j));
-                            col_norm += abs(A(j, i));
+                            try {
+                                using std::abs;
+                                row_norm += abs(A(i, j));
+                                col_norm += abs(A(j, i));
+                            } catch (...) {
+                                throw std::runtime_error(
+                                    "Failed to compute norms in balancing");
+                            }
                         }
                     }
 
@@ -55,16 +72,32 @@ Matrix<ComputeType> Matrix<T>::balance_matrix() const {
 
                             for (int j = 0; j < n; ++j) {
                                 if (j != i) {
-                                    A(i, j) *= static_cast<ComputeType>(f);
-                                    A(j, i) /= static_cast<ComputeType>(f);
+                                    try {
+                                        A(i, j) *= static_cast<ComputeType>(f);
+                                        A(j, i) /= static_cast<ComputeType>(f);
+                                    } catch (...) {
+                                        throw std::runtime_error(
+                                            "Failed to apply balancing transformation");
+                                    }
                                 }
                             }
-                            A(i, i) *= static_cast<ComputeType>(f);
+                            try {
+                                A(i, i) *= static_cast<ComputeType>(f);
+                            } catch (...) {
+                                throw std::runtime_error(
+                                    "Failed to scale diagonal element");
+                            }
                         }
                     }
                 }
             }
+
+            if (!converged) {
+                std::cerr << "Warning: Balancing did not converge after "
+                          << max_iterations << " iterations\n";
+            }
         } else if constexpr (std::is_integral_v<ComputeType>) {
+            // Nothing to do for integral types
         }
     }
 
@@ -74,28 +107,58 @@ Matrix<ComputeType> Matrix<T>::balance_matrix() const {
 template<typename T>
 template<typename ComputeType>
 std::pair<Matrix<ComputeType>, Matrix<ComputeType>> Matrix<T>::qr_decomposition() const {
+    if (min_dim_ == 0) {
+        return {Matrix<ComputeType>(), Matrix<ComputeType>()};
+    }
+
     int m = rows_;
     int n = cols_;
 
     Matrix<ComputeType> Q;
-    Matrix<ComputeType> R = this->template cast_to<ComputeType>();
+    Matrix<ComputeType> R;
+
+    try {
+        R = this->template cast_to<ComputeType>();
+    } catch (...) {
+        throw std::runtime_error(
+            "Failed to cast matrix to ComputeType for QR decomposition");
+    }
 
     if constexpr (detail::is_matrix_v<ComputeType>) {
         int block_rows = 1;
         int block_cols = 1;
         if (m > 0 && n > 0) {
-            block_rows = R(0, 0).get_rows();
-            block_cols = R(0, 0).get_cols();
+            try {
+                block_rows = R(0, 0).get_rows();
+                block_cols = R(0, 0).get_cols();
+            } catch (...) {
+                block_rows = 1;
+                block_cols = 1;
+            }
         }
-        Q = Matrix<ComputeType>::BlockIdentity(m, m, block_rows, block_cols);
+        try {
+            Q = Matrix<ComputeType>::BlockIdentity(m, m, block_rows, block_cols);
+        } catch (...) {
+            throw std::runtime_error("Failed to create identity matrix for Q");
+        }
     } else {
-        Q = Matrix<ComputeType>::Identity(m);
+        try {
+            Q = Matrix<ComputeType>::Identity(m);
+        } catch (...) {
+            throw std::runtime_error("Failed to create identity matrix for Q");
+        }
     }
 
     for (int k = 0; k < std::min(m - 1, n); ++k) {
-        Vector<ComputeType> x(m - k);
-        for (int i = k; i < m; ++i) {
-            x[i - k] = R(i, k);
+        Vector<ComputeType> x;
+        try {
+            x = Vector<ComputeType>(m - k);
+            for (int i = k; i < m; ++i) {
+                x[i - k] = R(i, k);
+            }
+        } catch (...) {
+            throw std::runtime_error(
+                "Failed to create column vector for Householder transformation");
         }
 
         auto v = householder_vector(x);
@@ -105,47 +168,90 @@ std::pair<Matrix<ComputeType>, Matrix<ComputeType>> Matrix<T>::qr_decomposition(
             continue;
 
         ComputeType two_scalar;
-        if constexpr (detail::is_matrix_v<ComputeType>) {
-            using InnerType = typename ComputeType::value_type;
-            auto block = R(0, 0);
-            InnerType inner_two = create_scalar(block(0, 0), InnerType(2));
-            two_scalar =
-                ComputeType::Diagonal(block.get_rows(), block.get_cols(), inner_two);
-        } else if constexpr (detail::is_complex_v<ComputeType>) {
-            using RealType = typename ComputeType::value_type;
-            two_scalar = ComputeType(RealType(2), RealType(0));
-        } else {
-            two_scalar = ComputeType(2);
+        try {
+            if constexpr (detail::is_matrix_v<ComputeType>) {
+                using InnerType = typename ComputeType::value_type;
+                auto block = R(0, 0);
+                InnerType inner_two = create_scalar(block(0, 0), InnerType(2));
+                two_scalar =
+                    ComputeType::Diagonal(block.get_rows(), block.get_cols(), inner_two);
+            } else if constexpr (detail::is_complex_v<ComputeType>) {
+                using RealType = typename ComputeType::value_type;
+                two_scalar = ComputeType(RealType(2), RealType(0));
+            } else {
+                two_scalar = ComputeType(2);
+            }
+        } catch (...) {
+            throw std::runtime_error(
+                "Failed to create scalar 2 for Householder transformation");
         }
 
+        // Apply Householder transformation to R
         for (int j = k; j < n; ++j) {
-            Vector<ComputeType> col(m - k);
-            for (int i = k; i < m; ++i) {
-                col[i - k] = R(i, j);
+            Vector<ComputeType> col;
+            try {
+                col = Vector<ComputeType>(m - k);
+                for (int i = k; i < m; ++i) {
+                    col[i - k] = R(i, j);
+                }
+            } catch (...) {
+                throw std::runtime_error(
+                    "Failed to extract column for Householder transformation");
             }
 
-            ComputeType dot = col.dot(v);
+            ComputeType dot;
+            try {
+                dot = col.dot(v);
+            } catch (...) {
+                throw std::runtime_error(
+                    "Failed to compute dot product for Householder transformation");
+            }
 
             for (int i = k; i < m; ++i) {
-                R(i, j) = R(i, j) - v[i - k] * dot * two_scalar;
+                try {
+                    R(i, j) = R(i, j) - v[i - k] * dot * two_scalar;
+                } catch (...) {
+                    throw std::runtime_error(
+                        "Failed to update R matrix in Householder transformation");
+                }
             }
         }
 
+        // Apply Householder transformation to Q
         for (int j = 0; j < m; ++j) {
-            Vector<ComputeType> col(m - k);
-            for (int i = k; i < m; ++i) {
-                col[i - k] = Q(i, j);
+            Vector<ComputeType> col;
+            try {
+                col = Vector<ComputeType>(m - k);
+                for (int i = k; i < m; ++i) {
+                    col[i - k] = Q(i, j);
+                }
+            } catch (...) {
+                throw std::runtime_error(
+                    "Failed to extract column of Q for Householder transformation");
             }
 
-            ComputeType dot = col.dot(v);
+            ComputeType dot;
+            try {
+                dot = col.dot(v);
+            } catch (...) {
+                throw std::runtime_error("Failed to compute dot product for Q update");
+            }
 
             for (int i = k; i < m; ++i) {
-                Q(i, j) = Q(i, j) - v[i - k] * dot * two_scalar;
+                try {
+                    Q(i, j) = Q(i, j) - v[i - k] * dot * two_scalar;
+                } catch (...) {
+                    throw std::runtime_error("Failed to update Q matrix");
+                }
             }
         }
     }
 
-    return {Q.transpose(), R};
+    try {
+        return {Q.transpose(), R};
+    } catch (...) {
+        throw std::runtime_error("Failed to transpose Q matrix");
+    }
 }
 
 template<typename T>
@@ -166,7 +272,13 @@ Vector<ComputeType> Matrix<T>::householder_vector(const Vector<ComputeType> &x) 
                 auto block = x[0];
                 int block_rows = block.get_rows();
                 int block_cols = block.get_cols();
-                ComputeType zero_block = ComputeType::Zero(block_rows, block_cols);
+                ComputeType zero_block;
+                try {
+                    zero_block = ComputeType::Zero(block_rows, block_cols);
+                } catch (...) {
+                    throw std::runtime_error(
+                        "Failed to create zero block for householder vector");
+                }
                 zero_vec = Vector<ComputeType>(m, zero_block);
             } else {
                 zero_vec = Vector<ComputeType>(0);
@@ -186,13 +298,23 @@ Vector<ComputeType> Matrix<T>::householder_vector(const Vector<ComputeType> &x) 
             int block_rows = block.get_rows();
             int block_cols = block.get_cols();
 
-            ComputeType zero_block = ComputeType::Zero(block_rows, block_cols);
+            ComputeType zero_block;
+            try {
+                zero_block = ComputeType::Zero(block_rows, block_cols);
+            } catch (...) {
+                throw std::runtime_error("Failed to create zero block for e1");
+            }
             e1 = Vector<ComputeType>(m, zero_block);
 
-            ComputeType scalar_norm_block =
-                ComputeType::Diagonal(block_rows,
-                                      block_cols,
-                                      create_scalar(block(0, 0), norm_x));
+            ComputeType scalar_norm_block;
+            try {
+                scalar_norm_block =
+                    ComputeType::Diagonal(block_rows,
+                                          block_cols,
+                                          create_scalar(block(0, 0), norm_x));
+            } catch (...) {
+                throw std::runtime_error("Failed to create norm block for e1");
+            }
             e1[0] = scalar_norm_block;
         } else {
             e1 = Vector<ComputeType>(0);
@@ -227,13 +349,26 @@ Vector<ComputeType> Matrix<T>::householder_vector(const Vector<ComputeType> &x) 
 
     if constexpr (detail::is_matrix_v<ComputeType>) {
         using InnerType = typename ComputeType::value_type;
-        InnerType norm_v_scalar = create_scalar(v[0](0, 0), norm_v);
+        InnerType norm_v_scalar;
+        try {
+            norm_v_scalar = create_scalar(v[0](0, 0), norm_v);
+        } catch (...) {
+            throw std::runtime_error("Failed to create norm scalar for block matrix");
+        }
 
         for (int i = 0; i < m; ++i) {
-            v[i] = v[i] / norm_v_scalar;
+            try {
+                v[i] = v[i] / norm_v_scalar;
+            } catch (...) {
+                throw std::runtime_error("Failed to normalize block matrix element");
+            }
         }
     } else {
-        v = v / norm_v;
+        try {
+            v = v / norm_v;
+        } catch (...) {
+            throw std::runtime_error("Failed to normalize vector");
+        }
     }
 
     return v;
@@ -242,6 +377,14 @@ Vector<ComputeType> Matrix<T>::householder_vector(const Vector<ComputeType> &x) 
 template<typename T>
 template<typename ComputeType>
 Matrix<ComputeType> Matrix<T>::hessenberg_form() const {
+    if (min_dim_ == 0) {
+        return Matrix<ComputeType>();
+    }
+
+    if (rows_ != cols_) {
+        throw std::invalid_argument("Matrix must be square for Hessenberg form");
+    }
+
     auto H = this->template cast_to<ComputeType>();
     int n = rows_;
 
@@ -249,16 +392,25 @@ Matrix<ComputeType> Matrix<T>::hessenberg_form() const {
 
     if constexpr (detail::is_matrix_v<ComputeType>) {
         if (n > 0) {
-            DEBUG_PRINTF("H block size: %dx%d\n",
-                         H(0, 0).get_rows(),
-                         H(0, 0).get_cols());
+            try {
+                DEBUG_PRINTF("H block size: %dx%d\n",
+                             H(0, 0).get_rows(),
+                             H(0, 0).get_cols());
+            } catch (...) {
+                DEBUG_PRINTF("H block size: unknown\n");
+            }
         }
     }
 
     for (int k = 0; k < n - 2; ++k) {
-        Vector<ComputeType> x(n - k - 1);
-        for (int i = k + 1; i < n; ++i) {
-            x[i - k - 1] = H(i, k);
+        Vector<ComputeType> x;
+        try {
+            x = Vector<ComputeType>(n - k - 1);
+            for (int i = k + 1; i < n; ++i) {
+                x[i - k - 1] = H(i, k);
+            }
+        } catch (...) {
+            throw std::runtime_error("Failed to create vector for Hessenberg reduction");
         }
 
         auto v = householder_vector(x);
@@ -267,8 +419,17 @@ Matrix<ComputeType> Matrix<T>::hessenberg_form() const {
         if (is_norm_zero(v_norm))
             continue;
 
-        apply_householder_left(H, v, k + 1);
-        apply_householder_right(H, v, k + 1);
+        try {
+            apply_householder_left(H, v, k + 1);
+            apply_householder_right(H, v, k + 1);
+        } catch (const std::exception &e) {
+            throw std::runtime_error(
+                "Failed to apply Householder transformation in Hessenberg reduction: "
+                + std::string(e.what()));
+        } catch (...) {
+            throw std::runtime_error(
+                "Failed to apply Householder transformation in Hessenberg reduction");
+        }
     }
 
     return H;
@@ -282,33 +443,63 @@ void Matrix<T>::apply_householder_left(Matrix<ComputeType> &A,
     int n = A.get_rows();
     int m = A.get_cols();
 
+    if (k < 0 || k >= n) {
+        throw std::out_of_range("Index k out of range in apply_householder_left");
+    }
+
     auto two_scalar = Matrix<ComputeType>::create_scalar(A(0, 0), 2.0);
 
     for (int j = k; j < m; ++j) {
-        Vector<ComputeType> col(n - k);
-        for (int i = k; i < n; ++i) {
-            col[i - k] = A(i, j);
+        Vector<ComputeType> col;
+        try {
+            col = Vector<ComputeType>(n - k);
+            for (int i = k; i < n; ++i) {
+                col[i - k] = A(i, j);
+            }
+        } catch (...) {
+            throw std::runtime_error(
+                "Failed to extract column for left Householder transformation");
         }
 
         ComputeType dot;
         if constexpr (detail::is_complex_v<ComputeType>) {
             dot = ComputeType(0);
             for (int i = 0; i < n - k; ++i) {
-                dot += std::conj(v[i]) * col[i];
+                try {
+                    dot += std::conj(v[i]) * col[i];
+                } catch (...) {
+                    throw std::runtime_error(
+                        "Failed to compute complex conjugate dot product");
+                }
             }
         } else {
-            dot = col.dot(v);
+            try {
+                dot = col.dot(v);
+            } catch (...) {
+                throw std::runtime_error(
+                    "Failed to compute dot product for left Householder transformation");
+            }
         }
 
         ComputeType scale_factor;
         if constexpr (detail::is_matrix_v<ComputeType>) {
-            scale_factor = two_scalar * dot;
+            try {
+                scale_factor = two_scalar * dot;
+            } catch (...) {
+                throw std::runtime_error(
+                    "Failed to compute scale factor for block matrix");
+            }
         } else {
             scale_factor = dot * two_scalar;
         }
 
         for (int i = k; i < n; ++i) {
-            A(i, j) = A(i, j) - v[i - k] * scale_factor;
+            try {
+                A(i, j) = A(i, j) - v[i - k] * scale_factor;
+            } catch (...) {
+                throw std::runtime_error(
+                    "Failed to update matrix element in left Householder transformation");
+            }
         }
     }
 }
@@ -321,28 +512,53 @@ void Matrix<T>::apply_householder_right(Matrix<ComputeType> &A,
     int n = A.get_rows();
     int m = A.get_cols();
 
+    if (k < 0 || k >= m) {
+        throw std::out_of_range("Index k out of range in apply_householder_right");
+    }
+
     auto two_scalar = Matrix<ComputeType>::create_scalar(A(0, 0), 2.0);
 
     for (int i = 0; i < n; ++i) {
-        Vector<ComputeType> row(m - k);
-        for (int j = k; j < m; ++j) {
-            row[j - k] = A(i, j);
+        Vector<ComputeType> row;
+        try {
+            row = Vector<ComputeType>(m - k);
+            for (int j = k; j < m; ++j) {
+                row[j - k] = A(i, j);
+            }
+        } catch (...) {
+            throw std::runtime_error(
+                "Failed to extract row for right Householder transformation");
         }
 
         ComputeType dot;
         if constexpr (detail::is_complex_v<ComputeType>) {
             dot = ComputeType(0);
             for (int idx = 0; idx < m - k; ++idx) {
-                dot += std::conj(v[idx]) * row[idx];
+                try {
+                    dot += std::conj(v[idx]) * row[idx];
+                } catch (...) {
+                    throw std::runtime_error(
+                        "Failed to compute complex conjugate dot product");
+                }
             }
         } else {
-            dot = row.dot(v);
+            try {
+                dot = row.dot(v);
+            } catch (...) {
+                throw std::runtime_error(
+                    "Failed to compute dot product for right Householder transformation");
+            }
         }
 
         ComputeType scale_factor = dot * two_scalar;
 
         for (int j = k; j < m; ++j) {
-            A(i, j) = A(i, j) - v[j - k] * scale_factor;
+            try {
+                A(i, j) = A(i, j) - v[j - k] * scale_factor;
+            } catch (...) {
+                throw std::runtime_error(
+                    "Failed to update matrix element in right Householder transformation");
+            }
         }
     }
 }
@@ -352,17 +568,41 @@ template<typename ComputeType>
 Vector<ComputeType> Matrix<T>::back_substitution(const Matrix<ComputeType> &R,
                                                  const Vector<ComputeType> &y) const {
     int n = R.get_rows();
+
+    if (n == 0) {
+        return Vector<ComputeType>(0);
+    }
+
+    if (R.get_cols() != n) {
+        throw std::invalid_argument("R must be square for back substitution");
+    }
+
+    if (y.size() != n) {
+        throw std::invalid_argument("Vector y must have same size as R");
+    }
+
     Vector<ComputeType> x;
 
     if constexpr (detail::is_matrix_v<ComputeType>) {
         if (n > 0) {
             int block_rows = 1;
             int block_cols = 1;
-            if (R(0, 0).get_rows() > 0 && R(0, 0).get_cols() > 0) {
-                block_rows = R(0, 0).get_rows();
-                block_cols = R(0, 0).get_cols();
+            try {
+                if (R(0, 0).get_rows() > 0 && R(0, 0).get_cols() > 0) {
+                    block_rows = R(0, 0).get_rows();
+                    block_cols = R(0, 0).get_cols();
+                }
+            } catch (...) {
+                block_rows = 1;
+                block_cols = 1;
             }
-            ComputeType zero_block = ComputeType::Zero(block_rows, block_cols);
+            ComputeType zero_block;
+            try {
+                zero_block = ComputeType::Zero(block_rows, block_cols);
+            } catch (...) {
+                throw std::runtime_error(
+                    "Failed to create zero block for back substitution");
+            }
             x = Vector<ComputeType>(n, zero_block);
         } else {
             x = Vector<ComputeType>(0);
@@ -376,19 +616,38 @@ Vector<ComputeType> Matrix<T>::back_substitution(const Matrix<ComputeType> &R,
         if constexpr (detail::is_matrix_v<ComputeType>) {
             int block_rows = 1;
             int block_cols = 1;
-            if (n > 0 && R(0, 0).get_rows() > 0 && R(0, 0).get_cols() > 0) {
-                block_rows = R(0, 0).get_rows();
-                block_cols = R(0, 0).get_cols();
+            if (n > 0) {
+                try {
+                    if (R(0, 0).get_rows() > 0 && R(0, 0).get_cols() > 0) {
+                        block_rows = R(0, 0).get_rows();
+                        block_cols = R(0, 0).get_cols();
+                    }
+                } catch (...) {
+                    block_rows = 1;
+                    block_cols = 1;
+                }
             }
-            sum = ComputeType::Zero(block_rows, block_cols);
+            try {
+                sum = ComputeType::Zero(block_rows, block_cols);
+            } catch (...) {
+                throw std::runtime_error("Failed to create zero block for sum");
+            }
         } else {
             sum = ComputeType{0};
         }
 
         for (int j = i + 1; j < n; ++j) {
-            sum = sum + R(i, j) * x[j];
+            try {
+                sum = sum + R(i, j) * x[j];
+            } catch (...) {
+                throw std::runtime_error("Failed to compute sum in back substitution");
+            }
         }
-        x[i] = (y[i] - sum) / R(i, i);
+        try {
+            x[i] = (y[i] - sum) / R(i, i);
+        } catch (...) {
+            throw std::runtime_error("Failed to compute x[i] in back substitution");
+        }
     }
 
     return x;
@@ -399,27 +658,66 @@ template<typename ComputeType>
 Vector<ComputeType> Matrix<T>::inverse_iteration(const Matrix<ComputeType> &A,
                                                  const ComputeType &lambda,
                                                  int max_iterations) const {
+    if (max_iterations <= 0) {
+        throw std::invalid_argument("max_iterations must be positive");
+    }
+
     int n = A.get_rows();
+
+    if (n == 0) {
+        return Vector<ComputeType>(0);
+    }
+
+    if (A.get_cols() != n) {
+        throw std::invalid_argument("A must be square for inverse iteration");
+    }
 
     Matrix<ComputeType> I;
     if constexpr (detail::is_matrix_v<ComputeType>) {
         int block_rows = 1;
         int block_cols = 1;
-        if (n > 0 && A(0, 0).get_rows() > 0 && A(0, 0).get_cols() > 0) {
-            block_rows = A(0, 0).get_rows();
-            block_cols = A(0, 0).get_cols();
+        if (n > 0) {
+            try {
+                if (A(0, 0).get_rows() > 0 && A(0, 0).get_cols() > 0) {
+                    block_rows = A(0, 0).get_rows();
+                    block_cols = A(0, 0).get_cols();
+                }
+            } catch (...) {
+                block_rows = 1;
+                block_cols = 1;
+            }
         }
-        I = Matrix<ComputeType>::BlockIdentity(n, n, block_rows, block_cols);
+        try {
+            I = Matrix<ComputeType>::BlockIdentity(n, n, block_rows, block_cols);
+        } catch (...) {
+            throw std::runtime_error(
+                "Failed to create identity matrix for inverse iteration");
+        }
     } else {
-        I = Matrix<ComputeType>::Identity(n);
+        try {
+            I = Matrix<ComputeType>::Identity(n);
+        } catch (...) {
+            throw std::runtime_error(
+                "Failed to create identity matrix for inverse iteration");
+        }
     }
 
     auto lambda_I = I * lambda;
     auto B = A - lambda_I;
 
-    auto x = Vector<ComputeType>::random(n);
+    Vector<ComputeType> x;
+    try {
+        x = Vector<ComputeType>::random(n);
+    } catch (...) {
+        throw std::runtime_error("Failed to create random vector for inverse iteration");
+    }
+
     auto x_norm = x.norm();
-    x = x / x_norm;
+    try {
+        x = x / x_norm;
+    } catch (...) {
+        throw std::runtime_error("Failed to normalize vector for inverse iteration");
+    }
 
     for (int iter = 0; iter < max_iterations; ++iter) {
         try {
@@ -438,6 +736,16 @@ template<typename T>
 template<typename ComputeType>
 std::vector<ComputeType> Matrix<T>::extract_eigenvalues_2x2(const Matrix<ComputeType> &H,
                                                             int i) const {
+    int n = H.get_rows();
+
+    if (n == 0) {
+        return {};
+    }
+
+    if (i < 0 || i + 1 >= n) {
+        throw std::out_of_range("Index i out of range in extract_eigenvalues_2x2");
+    }
+
     std::vector<ComputeType> eigenvalues;
 
     if constexpr (detail::is_matrix_v<ComputeType>) {
@@ -518,6 +826,14 @@ template<typename ComputeType>
 Matrix<ComputeType>
 Matrix<T>::eigenvectors_2x2(const Matrix<ComputeType> &A,
                             const std::vector<ComputeType> &eigenvalues) const {
+    if (A.get_rows() != 2 || A.get_cols() != 2) {
+        throw std::invalid_argument("eigenvectors_2x2 requires a 2x2 matrix");
+    }
+
+    if (eigenvalues.size() != 2) {
+        throw std::invalid_argument("eigenvalues must contain exactly 2 values");
+    }
+
     Matrix<ComputeType> V(2, 2);
 
     if constexpr (detail::is_matrix_v<ComputeType>) {
@@ -606,8 +922,16 @@ Matrix<T>::eigenvectors_2x2(const Matrix<ComputeType> &A,
 template<typename T>
 template<typename ComputeType>
 std::vector<ComputeType> Matrix<T>::eigenvalues_qr(int max_iterations) const {
+    if (min_dim_ == 0) {
+        return {};
+    }
+
     if (rows_ != cols_) {
         throw std::invalid_argument("Eigenvalues require square matrix");
+    }
+
+    if (max_iterations <= 0) {
+        throw std::invalid_argument("max_iterations must be positive");
     }
 
     Matrix<ComputeType> H;
@@ -617,7 +941,11 @@ std::vector<ComputeType> Matrix<T>::eigenvalues_qr(int max_iterations) const {
                   && (std::is_floating_point_v<ComputeType>
                       || detail::is_complex_v<ComputeType>)) {
         if (n > 3) {
-            H = this->template balance_matrix<ComputeType>();
+            try {
+                H = this->template balance_matrix<ComputeType>();
+            } catch (...) {
+                H = this->template cast_to<ComputeType>();
+            }
         } else {
             H = this->template cast_to<ComputeType>();
         }
@@ -633,7 +961,11 @@ std::vector<ComputeType> Matrix<T>::eigenvalues_qr(int max_iterations) const {
         return extract_eigenvalues_2x2(H, 0);
     }
 
-    H = H.template hessenberg_form<ComputeType>();
+    try {
+        H = H.template hessenberg_form<ComputeType>();
+    } catch (...) {
+        throw std::runtime_error("Failed to reduce matrix to Hessenberg form");
+    }
 
     const int adjusted_iterations = max_iterations * 2;
 
@@ -689,6 +1021,18 @@ std::vector<ComputeType> Matrix<T>::eigenvalues_qr(int max_iterations) const {
 template<typename T>
 template<typename ComputeType>
 Matrix<ComputeType> Matrix<T>::eigenvectors_qr(int max_iterations) const {
+    if (min_dim_ == 0) {
+        return Matrix<ComputeType>();
+    }
+
+    if (rows_ != cols_) {
+        throw std::invalid_argument("Eigenvectors require square matrix");
+    }
+
+    if (max_iterations <= 0) {
+        throw std::invalid_argument("max_iterations must be positive");
+    }
+
     auto A_orig = this->template cast_to<ComputeType>();
     int n = rows_;
 
@@ -697,19 +1041,40 @@ Matrix<ComputeType> Matrix<T>::eigenvectors_qr(int max_iterations) const {
     if constexpr (detail::is_matrix_v<ComputeType>) {
         int block_rows = 1;
         int block_cols = 1;
-        if (n > 0 && A_orig(0, 0).get_rows() > 0 && A_orig(0, 0).get_cols() > 0) {
-            block_rows = A_orig(0, 0).get_rows();
-            block_cols = A_orig(0, 0).get_cols();
+        if (n > 0) {
+            try {
+                if (A_orig(0, 0).get_rows() > 0 && A_orig(0, 0).get_cols() > 0) {
+                    block_rows = A_orig(0, 0).get_rows();
+                    block_cols = A_orig(0, 0).get_cols();
+                }
+            } catch (...) {
+                block_rows = 1;
+                block_cols = 1;
+            }
         }
-        V = Matrix<ComputeType>::BlockIdentity(n, n, block_rows, block_cols);
+        try {
+            V = Matrix<ComputeType>::BlockIdentity(n, n, block_rows, block_cols);
+        } catch (...) {
+            throw std::runtime_error(
+                "Failed to create identity matrix for eigenvectors");
+        }
     } else {
-        V = Matrix<ComputeType>::Identity(n);
+        try {
+            V = Matrix<ComputeType>::Identity(n);
+        } catch (...) {
+            throw std::runtime_error(
+                "Failed to create identity matrix for eigenvectors");
+        }
     }
 
     Matrix<ComputeType> H = A_orig;
 
     if (n > 2) {
-        H = H.template hessenberg_form<ComputeType>();
+        try {
+            H = H.template hessenberg_form<ComputeType>();
+        } catch (...) {
+            throw std::runtime_error("Failed to reduce matrix to Hessenberg form");
+        }
     }
 
     const int adjusted_iterations = max_iterations;
@@ -767,6 +1132,18 @@ template<typename T>
 template<typename ComputeType>
 std::pair<std::vector<ComputeType>, Matrix<ComputeType>>
 Matrix<T>::eigen_qr(int max_iterations) const {
+    if (min_dim_ == 0) {
+        return {{}, Matrix<ComputeType>()};
+    }
+
+    if (rows_ != cols_) {
+        throw std::invalid_argument("Eigen decomposition requires square matrix");
+    }
+
+    if (max_iterations <= 0) {
+        throw std::invalid_argument("max_iterations must be positive");
+    }
+
     auto eigvals = this->template eigenvalues_qr<ComputeType>(max_iterations);
     auto eigvecs = this->template eigenvectors_qr<ComputeType>(max_iterations);
 
@@ -776,12 +1153,36 @@ Matrix<T>::eigen_qr(int max_iterations) const {
 template<typename T>
 std::vector<typename Matrix<T>::template eigen_return_type<T>>
 Matrix<T>::eigenvalues(int max_iterations) const {
+    if (min_dim_ == 0) {
+        return {};
+    }
+
+    if (rows_ != cols_) {
+        throw std::invalid_argument("Eigenvalues require square matrix");
+    }
+
+    if (max_iterations <= 0) {
+        throw std::invalid_argument("max_iterations must be positive");
+    }
+
     return this->template eigenvalues_qr<eigen_return_type<T>>(max_iterations);
 }
 
 template<typename T>
 Matrix<typename Matrix<T>::template eigen_return_type<T>>
 Matrix<T>::eigenvectors(int max_iterations) const {
+    if (min_dim_ == 0) {
+        return Matrix<eigen_return_type<T>>();
+    }
+
+    if (rows_ != cols_) {
+        throw std::invalid_argument("Eigenvectors require square matrix");
+    }
+
+    if (max_iterations <= 0) {
+        throw std::invalid_argument("max_iterations must be positive");
+    }
+
     return this->template eigenvectors_qr<eigen_return_type<T>>(max_iterations);
 }
 
@@ -790,6 +1191,18 @@ std::pair<std::vector<typename Matrix<T>::template eigen_return_type<T>>,
           Matrix<typename Matrix<T>::template eigen_return_type<T>>>
 Matrix<T>::eigen(int max_iterations) const {
     using ComputeType = eigen_return_type<T>;
+
+    if (min_dim_ == 0) {
+        return {{}, Matrix<ComputeType>()};
+    }
+
+    if (rows_ != cols_) {
+        throw std::invalid_argument("Eigen decomposition requires square matrix");
+    }
+
+    if (max_iterations <= 0) {
+        throw std::invalid_argument("max_iterations must be positive");
+    }
 
     try {
         return this->template eigen_qr<ComputeType>(max_iterations);

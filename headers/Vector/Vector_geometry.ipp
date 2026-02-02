@@ -103,16 +103,16 @@ template<typename T> T Vector<T>::norm_squared() const {
 template<typename T> T Vector<T>::angle(const Vector<T> &other) const {
     if constexpr (detail::is_complex_v<T>) {
         T dot_val = this->dot(other);
-        T norm1 = this->norm();
-        T norm2 = other.norm();
+        auto norm1 = this->norm();
+        auto norm2 = other.norm();
 
-        if (norm1 == T{} || norm2 == T{}) {
+        if (this->is_zero(norm1) || this->is_zero(norm2)) {
             throw std::runtime_error("Cannot compute angle with zero vector");
         }
 
         using RealType = typename T::value_type;
         RealType abs_dot_val = std::abs(dot_val);
-        RealType norms_product = std::abs(norm1) * std::abs(norm2);
+        RealType norms_product = norm1 * norm2;
 
         if (norms_product == RealType{}) {
             throw std::runtime_error("Cannot compute angle with zero norm");
@@ -199,7 +199,7 @@ bool Vector<T>::is_collinear(const Vector<T> &other, T tolerance) const {
 }
 
 template<typename T> Vector<T> Vector<T>::normalized() const {
-    T n = norm();
+    auto n = norm();
     if (this->is_zero(n)) {
         throw std::runtime_error("Cannot normalize zero vector");
     }
@@ -207,7 +207,7 @@ template<typename T> Vector<T> Vector<T>::normalized() const {
 }
 
 template<typename T> void Vector<T>::normalize() {
-    T n = norm();
+    auto n = norm();
     if (this->is_zero(n)) {
         throw std::runtime_error("Cannot normalize zero vector");
     }

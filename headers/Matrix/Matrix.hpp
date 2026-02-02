@@ -178,24 +178,10 @@ public:
     using sqrt_return_type = typename detail::sqrt_return_type_impl<U>::type;
 
     Matrix<sqrt_return_type<T>> sqrt() const;
+
     bool has_square_root() const;
 
-    template<typename ResultType> Matrix<ResultType> sqrt_2x2_impl() const;
-
-    template<typename ResultType>
-    Matrix<ResultType> sqrt_newton_impl(int max_iter = 100,
-                                        ResultType tolerance = ResultType(1e-10)) const;
-
-    template<typename ResultType> bool has_square_root_impl() const;
-
-    template<typename ResultType> bool has_square_root_direct_impl() const;
-
-    template<typename ResultType> bool has_square_root_via_eigen_impl() const;
-
-    template<typename ResultType> Matrix<ResultType> sqrt_impl() const;
-
-    std::pair<Matrix<typename Matrix<T>::template sqrt_return_type<T>>, bool>
-    safe_sqrt() const;
+    std::pair<Matrix<sqrt_return_type<T>>, bool> safe_sqrt() const;
 
     /*=============================== Matrix_eigen.ipp ===============================*/
     template<typename U = T>
@@ -420,6 +406,117 @@ private:
                                      int start_j,
                                      int rows_in_block,
                                      int cols_in_block) const;
+
+    /*================================ Matrix_sqrt.ipp ================================*/
+    template<typename ResultType> Matrix<ResultType> compute_scalar_matrix_sqrt() const;
+
+    template<typename ResultType> Matrix<ResultType> compute_block_matrix_sqrt() const;
+
+    template<typename ResultType>
+    Matrix<ResultType> compute_1x1_sqrt(const Matrix<ResultType> &A) const;
+
+    template<typename ResultType>
+    Matrix<ResultType> compute_2x2_scalar_sqrt(const Matrix<ResultType> &A) const;
+
+    template<typename ResultType>
+    Matrix<ResultType> compute_diagonal_2x2_scalar_sqrt(const ResultType &a,
+                                                        const ResultType &d) const;
+
+    template<typename ResultType>
+    Matrix<ResultType> compute_full_2x2_scalar_sqrt(const ResultType &a,
+                                                    const ResultType &b,
+                                                    const ResultType &c,
+                                                    const ResultType &d) const;
+
+    template<typename ResultType>
+    ResultType compute_scalar_sqrt(const ResultType &value) const;
+
+    template<typename ResultType>
+    ResultType compute_scalar_sqrt_of_half_sum(const ResultType &tr,
+                                               const ResultType &sqrt_delta,
+                                               const ResultType &two,
+                                               bool plus) const;
+
+    template<typename ResultType>
+    Matrix<ResultType> compute_final_2x2_scalar_result(const ResultType &a,
+                                                       const ResultType &b,
+                                                       const ResultType &c,
+                                                       const ResultType &d,
+                                                       const ResultType &s_plus,
+                                                       const ResultType &s_minus,
+                                                       const ResultType &two) const;
+
+    template<typename ResultType>
+    Matrix<ResultType> compute_scalar_newton_sqrt(const Matrix<ResultType> &A,
+                                                  int max_iter,
+                                                  ResultType tolerance) const;
+
+    template<typename ResultType, typename NormType, typename RealType>
+    Matrix<ResultType> perform_scalar_newton_iterations(const Matrix<ResultType> &A,
+                                                        Matrix<ResultType> X,
+                                                        int n,
+                                                        int max_iter,
+                                                        RealType tol_norm) const;
+
+    template<typename ResultType>
+    bool perform_single_scalar_newton_iteration(const Matrix<ResultType> &A,
+                                                Matrix<ResultType> &X,
+                                                int n,
+                                                int iter) const;
+
+    template<typename ResultType>
+    Matrix<ResultType>
+    compute_scalar_matrix_inverse(Matrix<ResultType> &X, int n, int iter) const;
+
+    template<typename ResultType>
+    void apply_scalar_shift_to_matrix(Matrix<ResultType> &X, int n) const;
+
+    template<typename ResultType> Matrix<ResultType> compute_block_1x1_sqrt() const;
+
+    template<typename ResultType> Matrix<ResultType> compute_block_2x2_sqrt() const;
+
+    template<typename ResultType> bool check_block_diagonal() const;
+
+    template<typename ResultType>
+    Matrix<ResultType> compute_block_diagonal_sqrt(Matrix<ResultType> &result,
+                                                   int block_rows,
+                                                   int block_cols) const;
+
+    template<typename ResultType>
+    Matrix<ResultType> compute_block_non_diagonal_sqrt(int block_rows,
+                                                       int block_cols) const;
+
+    template<typename ResultType> bool has_square_root_for_type() const;
+
+    template<typename ResultType> bool check_1x1_has_square_root() const;
+
+    template<typename ResultType> bool check_2x2_has_square_root() const;
+
+    template<typename ResultType> bool check_positive_diagonal() const;
+
+    template<typename ResultType> bool has_square_root_direct_check() const;
+
+    template<typename ResultType> Matrix<ResultType> create_approximate_sqrt() const;
+
+    template<typename ResultType>
+    ResultType compute_approximate_element(int i, int j) const;
+
+    template<typename ResultType>
+    ResultType compute_approximate_diagonal_element(int i) const;
+
+    template<typename ResultType>
+    ResultType compute_approximate_off_diagonal_element() const;
+
+    template<typename ResultType> ResultType create_default_identity_element() const;
+
+    template<typename ResultType>
+    void check_and_fix_nan_elements(Matrix<ResultType> &approx) const;
+
+    template<typename ResultType>
+    bool check_for_nan_elements(const Matrix<ResultType> &approx) const;
+
+    template<typename ResultType>
+    Matrix<ResultType> create_fallback_identity_matrix() const;
 
     /*=============================== Matrix_eigen.ipp ===============================*/
     template<typename ComputeType>
